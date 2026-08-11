@@ -4,6 +4,16 @@
 
 local mp = require("mp")
 
+local debug = false
+
+if not _G.debug_msg then
+    function debug_msg(...)
+        if debug then
+            mp.msg.info('DEBUG', ...)
+        end
+    end
+end
+
 local scripts_dir = mp.command_native({"expand-path", "~~/scripts"})
 package.path = package.path .. ";" .. scripts_dir .. "/?.lua"
 package.path = package.path .. ";" .. scripts_dir .. "/?/init.lua"
@@ -51,13 +61,13 @@ end
 
 ---@param modname string
 local function loader2(modname)
-    mp.msg.info('loading2', modname)
+    -- mp.msg.info('loading2', modname)
     return require("elxlib."..modname)
 end
 
 ---@param modname string
 local function loader3(modname)
-    mp.msg.info('loading3', modname)
+    -- mp.msg.info('loading3', modname)
     local m = str_split(modname, '.')
     return require("elxlib.elxlibs."..m[2])
 end
@@ -133,7 +143,7 @@ local t = setmetatable({}, {
     ---@param self self
     ---@param name string
     __index = function (self, name)
-        mp.msg.info('loading', name)
+        -- mp.msg.info('loading', name)
         local backend = require("elxlib."..name)
         ---@diagnostic disable-next-line: inject-field
         self[name] = backend

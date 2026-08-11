@@ -43,7 +43,7 @@ local function _register_cls(cls, bases, mro, opts)
             __final = opts and opts.final or false,
             __bases = bases,
             __mro = mro,
-            __addr = tostring(cls), -- Note: here cls's metatable is not yet set, 
+            __addr = tostring(cls), -- Note: here cls's metatable is not set yet, 
                                     --       so here is cls's real address string.
         }
     }
@@ -54,6 +54,7 @@ local function _register_obj(obj, cls)
         __system = {
             __type = "object", 
             __class = cls, 
+            __name = cls.__name,
             __addr = tostring(obj)
         }
     }
@@ -127,9 +128,9 @@ local function __tostring(t)
         _system = _register.object[t].__system
     end
     if _system.__name then
-        return string.format("%s: %s", kind, _system.__name)
+        return string.format("%s(%s)", kind, _system.__name)
     else
-        return string.format("%s: %s", kind, _system.__addr)
+        return string.format("%s(%s)", kind, _system.__addr)
     end
 end
 
@@ -379,6 +380,7 @@ local function _new_object(cls,...)
 end
 
 function object:__new(...)
+    -- debug_msg('object new', self.__name)
     local obj = _new_object(self,...)
     obj:__init(...)
     return obj

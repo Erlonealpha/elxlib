@@ -3,19 +3,27 @@ local loops = require("elxlibs.asyncio.loops")
 local exception = require("elxlibs.std.exception")
 local exceptions = require("elxlibs.asyncio.exceptions")
 
+local function lzy_loops()
+    return require("elxlibs.asyncio.loops")
+end
+
 local PENDING = "pending"
 local CANCELLED = "cancelled"
 local FINISHED = "finished"
 
 local futures = {}
 
----@class asyncio.Future : std.object
----@overload fun(loop?: asyncio.EventLoop): asyncio.Future
+---@generic T
+---@class asyncio.Future<T> : std.object
+---@overload fun(loop?: asyncio.EventLoop): asyncio.Future<T>
 local Future = class.new("asyncio.Future")
 
 ---@param loop? asyncio.EventLoop
 function Future:__init(loop)
-    self._loop = loop or loops.get_running_loop()
+    debug_msg('Future:__init', loop)
+
+    ---@type asyncio.EventLoop
+    self._loop = loop or lzy_loops().get_running_loop()
     ---@type "pending"|"cancelled"|"finished"
     self._state = PENDING
     self._result = nil
@@ -40,6 +48,7 @@ function Future:done()
     return self._state ~= PENDING
 end
 
+---@return T
 function Future:result()
     if self._state == CANCELLED then
         exception.raise(exceptions.CancelledError(self._cancel_msg or "Future was cancelled."))
@@ -61,10 +70,10 @@ function Future:exception()
     return self._exception
 end
 
----@param cb fun(self:asyncio.Future)
+---@param cb fun(self:asyncio.Future<T>)
 function Future:add_done_callback(cb)
     if self._state ~= PENDING then
-        self._loop:call_soon(cb, self)
+        self._loop:call_soon(cb, {self})
     else
         table.insert(self._callbacks, cb)
     end
@@ -78,6 +87,7 @@ function Future:remove_done_callback(fn)
     end
 end
 
+---@param result T
 function Future:set_result(result)
     if self._state ~= PENDING then
         exception.raise(exceptions.InvalidStateError("Future is already done, state: ".. self._state))
@@ -97,9 +107,12 @@ function Future:set_exception(exc)
 end
 
 ---@async
+---@return T
 function Future:__await()
     if not self:done() then
-        local err = coroutine.yield()
+        debug_msg('Future:__await', self._name)
+        local err = coroutine.yield(self)
+        debug_msg('Future:__await yield', self._name, err)
         if err then
             exception.raise(err)
         end
@@ -110,13 +123,9 @@ function Future:__await()
     return self:result()
 end
 
--- function Future:__iter()
---     return
--- end
-
 function Future:__schedule_callbacks()
     for _, callback in ipairs(self._callbacks) do
-        self._loop:call_soon(callback)
+        self._loop:call_soon(callback, {self})
     end
     self._callbacks = {}
 end

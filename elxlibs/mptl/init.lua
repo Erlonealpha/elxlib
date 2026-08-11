@@ -12,7 +12,7 @@ local mptl = {}
 ---     killed_by_us: boolean,
 --- }
 
----@param opts {
+---@alias subprocess_opts {
 ---     args: string[],
 ---     playback_only?: boolean,
 ---     capture_size?: int,
@@ -24,8 +24,10 @@ local mptl = {}
 ---     passthrough_stdin?: boolean,
 ---
 ---     name?: "subprocess",
---- }?
---- @return subprocess_result?, string?
+--- }
+
+---@param opts subprocess_opts?
+---@return subprocess_result?, string?
 function mptl.subprocess(opts)
     if opts == nil then
         opts = {}
@@ -34,6 +36,17 @@ function mptl.subprocess(opts)
     local rv, err = mp.command_native(opts)
     ---@cast rv subprocess_result?
     return rv, err
+end
+
+---@param opts subprocess_opts?
+---@param cb fun(sucess: boolean, result: subprocess_result?, error_string: string?)
+function mptl.subprocess_async(opts, cb)
+    if opts == nil then
+        opts = {}
+    end
+    opts.name = "subprocess"
+    return mp.command_native_async(opts, cb)
+
 end
 
 return mptl

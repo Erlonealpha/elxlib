@@ -38,7 +38,7 @@ local M = {}
 -- M.TimeoutError = nil
 
 function M.raise(err)
-    error(err)
+    error(tostring(err))
 end
 
 function M.traceback(error)
