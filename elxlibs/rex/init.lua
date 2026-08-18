@@ -4,6 +4,7 @@ package.cpath = package.cpath .. string.format(';%s/lib/?.dll', _G._elxlib_path)
 ---@type LrexlibPcre2
 local _rex = require "rex_pcre2"
 local rex = {}
+package.loaded['rex_pcre2'] = rex
 
 local function pcall_wrap(fn, rv_wrap)
     return function (...)
