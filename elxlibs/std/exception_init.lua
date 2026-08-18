@@ -20,7 +20,8 @@ end
 
 function BaseException:__tostring()
     local msg = self._message or self.__str
-    return self.__name.. ": ".. tostring(msg)
+    local traceback = self.__traceback or debug.traceback()
+    return string.format('%s: %s\n%s', self.__name, tostring(msg), traceback)
 end
 
 ---@class std.Exception : std.BaseException

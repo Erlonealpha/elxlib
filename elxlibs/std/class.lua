@@ -3,6 +3,17 @@
 
 local exception = require("elxlibs.std.exception")
 
+local setmetatable  = setmetatable
+local tostring = tostring
+local rawequal = rawequal
+local rawget = rawget
+local ipairs = ipairs
+local string = string
+local table = table
+local pairs = pairs
+local type = type
+
+
 ---@class std.class
 local M = {}
 

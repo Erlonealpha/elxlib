@@ -97,6 +97,10 @@ M.isinstance = class.isinstance
 
 M.exception = exception
 M.raise = exception.raise
+M.try = exception.try
+M.catch = exception.catch
+M.finally = exception.finally
+
 M.BaseException = exception.BaseException
 M.Exception = exception.Exception
 M.RuntimeError = exception.RuntimeError

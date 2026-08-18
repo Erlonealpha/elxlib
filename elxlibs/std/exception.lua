@@ -37,8 +37,12 @@ local M = {}
 -- M.MemoryError = nil
 -- M.TimeoutError = nil
 
+---@return void
 function M.raise(err)
-    error(tostring(err))
+    if type(err) == "table" then
+        err.__traceback = debug.traceback()
+    end
+    error(err)
 end
 
 function M.traceback(error)
@@ -126,7 +130,7 @@ function M.try(block)
     end
 end
 
----@param block { [1]: fun():{catch:function} }
+---@param block { [1]: fun(err:any) }
 function M.catch(block)
     return {catch = block[1]}
 end
