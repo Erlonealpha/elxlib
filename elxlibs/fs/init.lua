@@ -23,9 +23,8 @@ function _M._exists_cmd(path)
 end
 
 ---@param path string
----@param recursive? boolean
 ---@param exists_ok? boolean
-function _M._create_dir_cmd(path, recursive, exists_ok)
+function _M._create_dir_cmd(path, exists_ok)
     if exists_ok == nil then
         exists_ok = true
     end
@@ -34,9 +33,6 @@ function _M._create_dir_cmd(path, recursive, exists_ok)
         "-c", "mkdir",
         "-p", path,
     }
-    if recursive then
-        table.insert(cmd, "-r")
-    end
     if exists_ok then
         table.insert(cmd, "-e")
     end
@@ -106,12 +102,11 @@ function _M.exists(path)
 end
 
 ---@param path string
----@param recursive boolean?
 ---@param exists_ok boolean?
 ---@return boolean, string?
-function _M.create_dir(path, recursive, exists_ok)
+function _M.create_dir(path, exists_ok)
     local result, err = mptl.subprocess{
-        args = _M._create_dir_cmd(path, recursive, exists_ok),
+        args = _M._create_dir_cmd(path, exists_ok),
         playback_only = false,
         capture_stdout = true,
         capture_stderr = true,
