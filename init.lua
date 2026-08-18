@@ -1,22 +1,8 @@
----@diagnostic disable: unresolved-require
----@module 'libsElx'
+---@module 'elxlib'
 ---@author Erlone
 
 local mp = require("mp")
 
-local debug = false
-
-if not _G.debug_msg then
-    function debug_msg(...)
-        if debug then
-            mp.msg.info('DEBUG', ...)
-        end
-    end
-end
-
-local scripts_dir = mp.command_native({"expand-path", "~~/scripts"})
-package.path = package.path .. ";" .. scripts_dir .. "/?.lua"
-package.path = package.path .. ";" .. scripts_dir .. "/?/init.lua"
 
 ---@class elxlib
 ---@field asyncio asyncio
@@ -28,6 +14,27 @@ package.path = package.path .. ";" .. scripts_dir .. "/?/init.lua"
 -----@field cjson cjson
 ---@field std elxstd
 ---@field mptl mptl
+---@field rex LrexlibPcre2
+
+
+local debug = false
+if not _G.debug_msg then
+    function debug_msg(...)
+        if debug then
+            mp.msg.info('DEBUG', ...)
+        end
+    end
+end
+
+local script_name = mp.get_script_name()
+local scripts_dir = mp.command_native({"expand-path", "~~/scripts"})
+package.path = package.path .. ";" .. scripts_dir .. "/?.lua"
+package.path = package.path .. ";" .. scripts_dir .. "/?/init.lua"
+package.cpath = package.cpath .. ";" .. scripts_dir .. "/?.dll"
+_G._elxlib_path = scripts_dir .. '/' .. script_name
+local lib_prefix = script_name .. '.'
+
+
 
 ---@param str string
 ---@param pattern string
@@ -61,15 +68,15 @@ end
 
 ---@param modname string
 local function loader2(modname)
-    -- mp.msg.info('loading2', modname)
-    return require("elxlib."..modname)
+    debug_msg('loading2', modname)
+    return require(lib_prefix..modname)
 end
 
 ---@param modname string
 local function loader3(modname)
-    -- mp.msg.info('loading3', modname)
+    debug_msg('loading3', modname)
     local m = str_split(modname, '.')
-    return require("elxlib.elxlibs."..m[2])
+    return require(lib_prefix.."elxlibs."..m[2])
 end
 
 ---@param module string
@@ -85,7 +92,7 @@ local function list_module_dir(module, dir)
     if files == nil or #files == 0 then
         return
     end
-    -- mp.msg.info(module, ':', mp.utils.format_table(files))
+    debug_msg(module, ':', mp.utils.format_table(files))
     return files
 end
 
@@ -126,14 +133,14 @@ end
 for _, modname in ipairs(module_names) do
     if not modname:match("^%.") then
         package.preload['elxlibs.' .. modname] = loader2
-        package.preload['elxlib.' .. modname] = loader3
+        package.preload[lib_prefix..'' .. modname] = loader3
         local sub_modules = find_sub_modules(modname)
         -- if #sub_modules > 0 then
         --     mp.msg.info('sub_modules:', mp.utils.format_table(sub_modules))
         -- end
         for _, sub in ipairs(sub_modules) do
             package.preload['elxlibs.' .. sub] = loader2
-            package.preload['elxlib.' .. sub] = loader3
+            package.preload[lib_prefix..'' .. sub] = loader3
         end
     end
 end
@@ -143,8 +150,8 @@ local t = setmetatable({}, {
     ---@param self self
     ---@param name string
     __index = function (self, name)
-        -- mp.msg.info('loading', name)
-        local backend = require("elxlib."..name)
+        debug_msg('loading', name)
+        local backend = require(lib_prefix..name)
         ---@diagnostic disable-next-line: inject-field
         self[name] = backend
         return backend
