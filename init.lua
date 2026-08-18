@@ -1,6 +1,8 @@
 ---@module 'elxlib'
 ---@author Erlone
 
+local script_name = ...
+
 local mp = require("mp")
 
 
@@ -26,14 +28,12 @@ if not _G.debug_msg then
     end
 end
 
-local script_name = mp.get_script_name()
 local scripts_dir = mp.command_native({"expand-path", "~~/scripts"})
 package.path = package.path .. ";" .. scripts_dir .. "/?.lua"
 package.path = package.path .. ";" .. scripts_dir .. "/?/init.lua"
 package.cpath = package.cpath .. ";" .. scripts_dir .. "/?.dll"
 _G._elxlib_path = scripts_dir .. '/' .. script_name
 local lib_prefix = script_name .. '.'
-
 
 
 ---@param str string
@@ -133,14 +133,14 @@ end
 for _, modname in ipairs(module_names) do
     if not modname:match("^%.") then
         package.preload['elxlibs.' .. modname] = loader2
-        package.preload[lib_prefix..'' .. modname] = loader3
+        package.preload[lib_prefix .. modname] = loader3
         local sub_modules = find_sub_modules(modname)
         -- if #sub_modules > 0 then
         --     mp.msg.info('sub_modules:', mp.utils.format_table(sub_modules))
         -- end
         for _, sub in ipairs(sub_modules) do
             package.preload['elxlibs.' .. sub] = loader2
-            package.preload[lib_prefix..'' .. sub] = loader3
+            package.preload[lib_prefix .. sub] = loader3
         end
     end
 end
