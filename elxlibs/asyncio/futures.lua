@@ -123,6 +123,19 @@ function Future:__await()
     return self:result()
 end
 
+---@async
+---@return T?, any?
+function Future:__try_await()
+    local err
+    if not self:done() then
+        err = coroutine.yield(self)
+    end
+    if not self:done() then
+        exception.raise(exception.RuntimeError("await wasn't used with future."))
+    end
+    return self:result(), err
+end
+
 function Future:__schedule_callbacks()
     for _, callback in ipairs(self._callbacks) do
         self._loop:call_soon(callback, {self})

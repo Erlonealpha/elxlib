@@ -15,16 +15,21 @@ function M.run(fn)
     loop:run_until_complete(loop:create_task(fn))
 end
 
-function M.sleep(t)
-
-end
-
-function M.mp_event(name, cb)
-
+---@param t number
+---@param loop asyncio.EventLoop?
+---@return asyncio.Future<nil>
+function M.sleep(t, loop)
+    local loop = loop or loops.get_running_loop()
+    local fut = loop:create_future()
+    loop:call_later(t, function()
+        fut:set_result()
+    end)
+    return fut
 end
 
 M.async = tasks.async
 M.await = tasks.await
+M.try_await = tasks.try_await
 M.create_task = tasks.create_task
 M.futures = futures
 M.tasks = tasks

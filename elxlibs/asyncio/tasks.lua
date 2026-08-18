@@ -117,6 +117,12 @@ function Task:__step(exc)
     if self:done() then
         std.raise(exceptions.InvalidStateError("__step(): Task already done"))
     end
+    if self._must_cancel then
+        if not std.isinstance(exc, exceptions.CancelledError) then
+            exc = exceptions.CancelledError()
+        end
+        self._must_cancel = false
+    end
 
     local ok, result
     if exc ~= nil then
@@ -160,10 +166,10 @@ function Task:__step(exc)
                 if result == self then
                     debug_msg('Task:__step cannot wait for itself', self._name)
                     self._loop:call_soon(self.__step, 
-                    {self, std.RuntimeError("Task cannot wait for itself")})
+                        {self, std.RuntimeError("Task cannot wait for itself")})
                 else
                     debug_msg('Task:__step', self._name, 'yield future', result)
-                        result:add_done_callback(function(fut)
+                    result:add_done_callback(function(fut)
                         self:__wakeup(fut)
                     end)
                 end
@@ -199,7 +205,7 @@ end
 
 
 ---@generic T
----@param func function
+---@param func fun():T
 ---@param name string?
 ---@return asyncio.Task<T>
 local function async(func, name)
@@ -209,13 +215,31 @@ end
 
 ---@async
 ---@generic T
----@param fut asyncio.Future<T>
----@return T
+---@overload fun(fut: asyncio.Future<T>): T
+---@overload fun(fut: nil): nil, any?
 local function await(fut)
+    if fut == nil then
+        local err = coroutine.yield()
+        if err then
+            std.raise(err)
+        end
+        return
+    end
     return fut:__await()
 end
 
+---@async
 ---@generic T
+---@overload fun(fut: asyncio.Future<T>): T
+---@overload fun(fut: nil): nil, any?
+local function try_await(fut)
+    if fut == nil then
+        local err = coroutine.yield()
+        return nil, err
+    end
+    return fut:__try_await()
+end
+
 ---@param func function
 ---@param name? string
 local function create_task(func, name)
@@ -229,6 +253,7 @@ local tasks = {
     wrap = wrap,
     async = async,
     await = await,
+    try_await = try_await,
     create_task = create_task,
     Task = Task,
 }

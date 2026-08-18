@@ -705,12 +705,7 @@ _G.mp_event_loop = function ()
     ---@async
     function()
         while true do
-            if #loop._ready ~= 0 then
-                local exc = coroutine.yield()
-                if exc then
-                    error(tostring(exc))
-                end
-            end
+            asyncio.await()
 
             local wait = 0
             wait = process_timers() or 1e20
@@ -743,7 +738,7 @@ _G.mp_event_loop = function ()
             end
         end
         debug_msg('End of MainLoop')
-    end, 'Task-MainLoop'))
+    end, 'Task-AmpMainLoop'))
 end
 
 amp.register_event("shutdown", function()
