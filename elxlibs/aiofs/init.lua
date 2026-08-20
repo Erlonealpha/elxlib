@@ -1,75 +1,91 @@
 local asyncio = require("elxlibs.asyncio")
-local fs = require("elxlibs.aiofs.fs")
+local amp = require('elxlibs.asyncio.mp')
+local fs = require("elxlibs.fs")
+
 
 ---@class aiofs
 local M = {version = "0.1.0"}
 
----@param func fun(..., cb:fun(ok:boolean, err:string))
----@param args any[]
-local function wrap(func, args)
-    return asyncio.event(function(resolve, reject)
-        func(table.unpack(args), function(ok, val_err)
-            if ok then
-                resolve(val_err)
-            else
-                reject(val_err)
-            end
-        end)
+---@alias aiofsResult<T> { ok: boolean, result: T?, error: string? }
+
+---@generic T
+---@param args string[]
+---@param get_result fun(result: table):aiofsResult<T>
+---@return asyncio.Future<aiofsResult<T>>
+local function amp_subprocess(args, get_result)
+    ---@type asyncio.Future<aiofsResult<T>>
+    local fut = asyncio.loops.get_running_loop():create_future()
+
+    amp.command_native_async({
+        name = 'subprocess',
+        args = args,
+        capture_stdout = true,
+        capture_stderr = true,
+    }, function(success, result, error)
+        if not success or result == nil or result.status ~= 0 then
+            fut:set_result({ok=false, error=error})
+            return
+        end
+        fut:set_result(get_result(result))
+        return
     end)
+
+    return fut
 end
 
----@param func fun(..., cb:fun(ok:boolean, err:string))
----@param args any[]
-local function wrap_no_err(func, args, err_val)
-    err_val = err_val or false
-    return asyncio.event(function(resolve)
-        func(table.unpack(args), function(ok, val_err)
-            if ok then
-                resolve(val_err)
-            else
-                resolve(err_val)
-            end
-        end)
+---@async
+---@param path string
+---@return asyncio.Future<aiofsResult<boolean>>
+function M.exists(path)
+    local cmd = fs._exists_cmd(path)
+    return amp_subprocess(cmd, function(result)
+        return {ok=true, result=result.stdout:find('true') ~= nil}
     end)
 end
 
 ---@async
 ---@param path string
-function M.exists(path) return wrap_no_err(fs.exists, {path}) end
-
----@async
----@param path string
----@param recursive boolean
 ---@param exists_ok boolean
-function M.mkdir(path, recursive, exists_ok) return wrap(fs.create_dir, {path, recursive, exists_ok}) end
+---@return asyncio.Future<aiofsResult<nil>>
+function M.create_dir(path, exists_ok)
+    local cmd = fs._create_dir_cmd(path, exists_ok)
+    return amp_subprocess(cmd, function(result)
+        return {ok=true, result=nil}
+    end)
+end
 
 ---@async
 ---@param path string
 ---@param recursive boolean
-function M.rmdir(path, recursive) return wrap(fs.remove_dir, {path, recursive}) end
-
----@async
----@param path string
-function M.remove(path) return wrap(fs.remove, {path}) end
+---@return asyncio.Future<aiofsResult<nil>>
+function M.remove_dir(path, recursive)
+    local cmd = fs._remove_dir_cmd(path, recursive)
+    return amp_subprocess(cmd, function(result)
+        return {ok=true, result=nil}
+    end)
+end
 
 ---@async
 ---@param src string
 ---@param dst string
 ---@param recursive boolean
-function M.copy(src, dst, recursive) return wrap(fs.copy, {src, dst, recursive}) end
-
----@async
----@param src string
----@param dst string
-function M.move(src, dst) return wrap(fs.move, {src, dst}) end
+---@return asyncio.Future<aiofsResult<nil>>
+function M.copy(src, dst, recursive)
+    local cmd = fs._copy_cmd(src, dst, recursive)
+    return amp_subprocess(cmd, function(result)
+        return {ok=true, result=nil}
+    end)
+end
 
 ---@async
 ---@param path string
-function M.stat(path) return wrap_no_err(fs.stat, {path}, nil) end
-
-
-function M.read_stream(path, mode, chunk_size)
-    
+---@param recursive boolean
+---@return asyncio.Future<aiofsResult<number>>
+function M.get_size(path, recursive)
+    local cmd = fs._get_size_cmd(path, recursive)
+    return amp_subprocess(cmd, function(result)
+        return {ok=true, result=tonumber(result.stdout:match('%d+'))}
+    end)
 end
 
 M.fs = fs
