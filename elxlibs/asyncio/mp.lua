@@ -4,6 +4,15 @@ local mp = require("mp")
 local asyncio = require('elxlibs.asyncio')
 local class = require('elxlibs.std.class')
 
+local type = type
+local table = table
+local pairs = pairs
+local unpack = unpack
+local ipairs = ipairs
+local tonumber = tonumber
+local tostring = tostring
+local setmetatable = setmetatable
+
 ---@class asyncio.amp
 local amp = {}
 
@@ -324,6 +333,7 @@ end
 -- Return the timer that expires next.
 ---@return mp_timer?
 local function get_next_timer()
+    ---@type mp_timer?
     local best = nil
     for t, _ in pairs(timers) do
         if best == nil or t.next_deadline < best.next_deadline then
@@ -412,6 +422,7 @@ function amp.observe_property(name, t, cb)
     local id = property_id + 1
     property_id = id
     properties[id] = cb
+    ---@diagnostic disable-next-line: param-type-mismatch
     mp.raw_observe_property(id, name, t)
 end
 
@@ -629,7 +640,7 @@ local async_next_id = 1
 ---    node: table,
 ---    cb: fun(success: boolean, result: any?, error: string?)
 --- ):nil,string
----@return table, string?
+---@return table?, string?
 function amp.command_native_async(node, cb)
     local id = async_next_id
     async_next_id = async_next_id + 1
@@ -675,7 +686,7 @@ end
 
 function EventLoop_mp:_run_once()
     local ntodo = #self._ready
-    debug_msg('EventLoop_mp:_run_once,', ntodo)
+    -- debug_msg('EventLoop_mp:_run_once,', ntodo)
 
     local time = self:time()
     while #self._scheduled > 0 do
@@ -699,6 +710,7 @@ function EventLoop_mp:_run_once()
 end
 
 local loop = EventLoop_mp()
+local _stoping = false
 
 _G.mp_event_loop = function ()
     loop:run_until_complete(loop:create_task(
@@ -709,7 +721,7 @@ _G.mp_event_loop = function ()
 
             local wait = 0
             wait = process_timers() or 1e20
-            if #loop._ready ~= 0 or loop._stopping then
+            if #loop._ready ~= 0 or _stoping then
                 wait = 0
             end
             if wait ~= 0 then
@@ -722,28 +734,28 @@ _G.mp_event_loop = function ()
             if e.event ~= "none" then
                 local handlers = event_handlers[e.event]
                 if handlers then
-                    debug_msg('create_task events', #handlers)
+                    -- debug_msg('create_task events', #handlers)
                     for _, handler in ipairs(handlers) do
-                        debug_msg('event', e.event, e.args and e.args[1] or '')
+                        -- debug_msg('event', e.event, e.args and e.args[1] or '')
                         loop:create_task(function()
-                            debug_msg('event run', _, handler)
+                            -- debug_msg('event run', _, handler)
                             handler(e)
                         end, 'Task-('..e.event..'.'..(e.args and e.args[1] or '')..')')
                     end
                 end
             end
 
-            if loop._stopping then
+            if _stoping then
                 break
             end
         end
-        debug_msg('End of MainLoop')
+        -- debug_msg('End of MainLoop')
     end, 'Task-AmpMainLoop'))
 end
 
 amp.register_event("shutdown", function()
-    debug_msg('shutdown recv')
-    loop:stop()
+    -- debug_msg('shutdown recv')
+    _stoping = true
 end)
 
 return amp
