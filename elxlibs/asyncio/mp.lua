@@ -1,6 +1,7 @@
 --- Override defaults.lua defines to handle events in asyncio eventloop.
 
 local mp = require("mp")
+local std = require('elxlibs.std')
 local asyncio = require('elxlibs.asyncio')
 local class = require('elxlibs.std.class')
 
@@ -711,6 +712,11 @@ end
 
 local loop = EventLoop_mp()
 local _stoping = false
+---@type table<int, asyncio.Task<nil>>
+local events_tasks = setmetatable({}, {__mode = 'v'})
+---@type int[]
+local err_tasks = {}
+local task_id = 0
 
 _G.mp_event_loop = function ()
     loop:run_until_complete(loop:create_task(
@@ -726,7 +732,18 @@ _G.mp_event_loop = function ()
             end
             if wait ~= 0 then
                 for _, handler in ipairs(idle_handlers) do
-                    loop:create_task(handler, 'Task-(idle)')
+                    local t_id = task_id
+                    local t = loop:create_task(function()
+                        local ok, err = pcall(handler)
+                        if not ok then
+                            table.insert(err_tasks, t_id)
+                            error(err)
+                        else
+                            events_tasks[t_id] = nil
+                        end
+                    end, 'Task-(idle)')
+                    events_tasks[t_id] = t
+                    task_id = task_id + 1
                 end
             end
 
@@ -737,11 +754,36 @@ _G.mp_event_loop = function ()
                     -- debug_msg('create_task events', #handlers)
                     for _, handler in ipairs(handlers) do
                         -- debug_msg('event', e.event, e.args and e.args[1] or '')
-                        loop:create_task(function()
+                        local t_id = task_id
+                        local t = loop:create_task(function()
                             -- debug_msg('event run', _, handler)
-                            handler(e)
+                            local ok, err = pcall(handler, e)
+                            if not ok then
+                                table.insert(err_tasks, t_id)
+                                error(err)
+                            else
+                                events_tasks[t_id] = nil
+                            end
                         end, 'Task-('..e.event..'.'..(e.args and e.args[1] or '')..')')
+                        events_tasks[t_id] = t
+                        task_id = task_id + 1
                     end
+                end
+            end
+
+            if #err_tasks > 0 then
+                if #err_tasks == 1 then
+                    local err = events_tasks[err_tasks[1]]._exception
+                    events_tasks[err_tasks[1]] = nil
+                    std.raise(err, 3)
+                else
+                    local errs = {}
+                    for _, t_id in ipairs(err_tasks) do
+                        table.insert(errs, tostring(events_tasks[t_id]._exception))
+                        events_tasks[t_id] = nil
+                    end
+                    std.raise(table.concat(errs, 
+                        '\nDuring handling of the above exception, another exception occurred:\n'), 3)
                 end
             end
 
@@ -757,5 +799,40 @@ amp.register_event("shutdown", function()
     -- debug_msg('shutdown recv')
     _stoping = true
 end)
+
+local function warning_for_mp(name)
+    return function ()
+        local extra = debug.traceback()
+        -- local extra
+        -- if info ~= nil then
+        --     extra = string.format('\n    (from %s:%d)', info.short_src, info.linedefined)
+        -- else
+        --     extra = ''
+        -- end
+        mp.msg.warn(string.format(
+            "Warning: asyncio.mp is already loaded. Use amp.%s instead of mp.%s%s", name, name, extra))
+    end
+end
+
+mp.set_key_bindings = warning_for_mp("set_key_bindings")
+mp.flush_keybindings = warning_for_mp("flush_keybindings")
+mp.add_key_binding = warning_for_mp("add_key_binding")
+mp.add_forced_key_binding = warning_for_mp("add_forced_key_binding")
+mp.remove_key_binding = warning_for_mp("remove_key_binding")
+mp.add_timeout = warning_for_mp("add_timeout")
+mp.add_periodic_timer = warning_for_mp("add_periodic_timer")
+mp.get_next_timeout = warning_for_mp("get_next_timeout")
+mp.register_script_message = warning_for_mp("register_script_message")
+mp.unregister_script_message = warning_for_mp("unregister_script_message")
+mp.observe_property = warning_for_mp("observe_property")
+mp.unobserve_property = warning_for_mp("unobserve_property")
+mp.register_event = warning_for_mp("register_event")
+mp.unregister_event = warning_for_mp("unregister_event")
+mp.register_idle = warning_for_mp("register_idle")
+mp.unregister_idle = warning_for_mp("unregister_idle")
+mp.add_hook = warning_for_mp("add_hook")
+mp.command_native_async = warning_for_mp("command_native_async")
+mp.abort_async_command = warning_for_mp("abort_async_command")
+
 
 return amp
