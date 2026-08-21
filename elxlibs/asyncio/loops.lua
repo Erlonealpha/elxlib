@@ -35,7 +35,7 @@ function EventLoop:create_future()
 end
 
 ---@generic T
----@param func function
+---@param func fun(...):T
 ---@param name string?
 function EventLoop:create_task(func, name)
     self:_check_close()
@@ -56,7 +56,7 @@ function EventLoop:run_forever()
     self:_check_close()
     self:_check_running()
     self._running = true
-    debug_msg('set running loop', self)
+    -- debug_msg('set running loop', self)
     events._set_running_loop(self)
 
     exception.try {
@@ -72,7 +72,7 @@ function EventLoop:run_forever()
             function (...) 
                 self._stopping = false
                 self._running = false
-                debug_msg('clear running loop')
+                -- debug_msg('clear running loop')
                 events._set_running_loop()
             end
         }

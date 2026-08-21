@@ -5,7 +5,7 @@ local futures = require("elxlibs.asyncio.futures")
 local loops = require("elxlibs.asyncio.loops")
 
 
-local _scheduled_tasks = {}
+local _scheduled_tasks = setmetatable({}, {__mode = 'k'})
 
 local function _register_task(task)
     _scheduled_tasks[task] = true
@@ -33,7 +33,7 @@ end})
 ---@param loop asyncio.EventLoop?
 ---@param name string?
 function Task:__init(func, loop, name)
-    debug_msg('Task:__init', loop, name)
+    -- debug_msg('Task:__init', loop, name)
     std.super(Task, self):__init(loop)
     local typ = type(func)
     if typ == "function" then
@@ -54,14 +54,14 @@ end
 ---@param func function
 ---@param args any[]?
 function Task._wrap(func, args)
-    return coroutine.create(function(fut, exc)
+    return coroutine.create(function(exc)
         if exc ~= nil then
-            error(exc)
+            std.raise(exc)
         end
         if args and #args > 0 then
             return func(table.unpack(args))
         else
-            return func(fut)
+            return func()
         end
     end)
 end
@@ -126,34 +126,34 @@ function Task:__step(exc)
 
     local ok, result
     if exc ~= nil then
-        debug_msg('Task:__step', self._name, 'resume with exc', exc)
+        -- debug_msg('Task:__step', self._name, 'resume with exc', exc)
         ok, result = coroutine.resume(self._thr, exc)
     else
         ok, result = coroutine.resume(self._thr)
     end
 
-    debug_msg('Task:__step', self._name, ok, result)
+    -- debug_msg('Task:__step', self._name, ok, result)
     if not ok then
         if type(result) == "table" and std.isinstance(result, exceptions.CancelledError) then
-            debug_msg('Task:__step', self._name, 'CancelledError')
+            -- debug_msg('Task:__step', self._name, 'CancelledError')
             self._cancelled_exc = result
-            std.super(Task, self):cancel(self._cancel_msg)
+            std.super(Task, self, futures.Future):cancel(self._cancel_msg)
         else
-            debug_msg('Task:__step', self._name, 'recv exc', result)
-            std.super(Task, self):set_exception(result)
+            -- debug_msg('Task:__step', self._name, 'recv exc', result)
+            std.super(Task, self, futures.Future):set_exception(result)
         end
         return
     end
 
     if coroutine.status(self._thr) == "dead" then
-        debug_msg(self._name, 'dead')
+        -- debug_msg(self._name, 'dead')
         std.super(Task, self):set_result(result)
         _unregister_task(self)
         return
     end
 
     if result == nil then
-        debug_msg('Task:__step yield empty', self._name)
+        -- debug_msg('Task:__step yield empty', self._name)
         self._loop:call_soon(self.__step, {self})
     else
         if type(result) == "table" and std.isinstance(result, futures.Future) then
@@ -161,21 +161,21 @@ function Task:__step(exc)
                 self._loop:call_soon(
                     self.__step, 
                     {self, std.RuntimeError("Task expected a Future in the same loop, got " .. tostring(result))})
-                debug_msg('Task:__step not same loop', self._name)
+                -- debug_msg('Task:__step not same loop', self._name)
             else
                 if result == self then
-                    debug_msg('Task:__step cannot wait for itself', self._name)
+                    -- debug_msg('Task:__step cannot wait for itself', self._name)
                     self._loop:call_soon(self.__step, 
                         {self, std.RuntimeError("Task cannot wait for itself")})
                 else
-                    debug_msg('Task:__step', self._name, 'yield future', result)
+                    -- debug_msg('Task:__step', self._name, 'yield future', result)
                     result:add_done_callback(function(fut)
                         self:__wakeup(fut)
                     end)
                 end
             end
         else
-            debug_msg('Task:__step got wrong Future', self._name)
+            -- debug_msg('Task:__step got wrong Future', self._name)
             self._loop:call_soon(self.__step, 
                 {self, std.RuntimeError("Task expected a Future, got " .. type(result))})
         end
@@ -184,7 +184,7 @@ end
 
 ---@param fut asyncio.Future<T>
 function Task:__wakeup(fut)
-    debug_msg('Task:__wakeup', self._name, fut)
+    -- debug_msg('Task:__wakeup', self._name, fut)
     if fut:done() then
         self._fut_waiter = nil
     end
@@ -209,7 +209,7 @@ end
 ---@param name string?
 ---@return asyncio.Task<T>
 local function async(func, name)
-    debug_msg('async create', name)
+    -- debug_msg('async create', name)
     return Task(Task._wrap(func), nil, name)
 end
 

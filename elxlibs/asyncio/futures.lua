@@ -20,7 +20,7 @@ local Future = class.new("asyncio.Future")
 
 ---@param loop? asyncio.EventLoop
 function Future:__init(loop)
-    debug_msg('Future:__init', loop)
+    -- debug_msg('Future:__init', loop)
 
     ---@type asyncio.EventLoop
     self._loop = loop or lzy_loops().get_running_loop()
@@ -50,12 +50,14 @@ end
 
 ---@return T
 function Future:result()
+    -- debug_msg('Future:result', self)
     if self._state == CANCELLED then
         exception.raise(exceptions.CancelledError(self._cancel_msg or "Future was cancelled."))
     elseif self._state ~= FINISHED then
         exception.raise(exceptions.InvalidStateError("Result is not available yet."))
     end
-    if self._exception then
+    if self._exception ~= nil then
+        -- debug_msg('Future:result', self, 'with err', self._exception)
         exception.raise(self._exception)
     end
     return self._result
@@ -110,9 +112,9 @@ end
 ---@return T
 function Future:__await()
     if not self:done() then
-        debug_msg('Future:__await', self._name)
+        -- debug_msg('Future:__await', self._name)
         local err = coroutine.yield(self)
-        debug_msg('Future:__await yield', self._name, err)
+        -- debug_msg('Future:__await yield', self._name, err)
         if err then
             exception.raise(err)
         end
