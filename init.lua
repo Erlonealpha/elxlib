@@ -201,8 +201,11 @@ for _, modname in ipairs(module_names) do
     end
 end
 
+---@diagnostic disable-next-line: unresolved-require
+local _version = require 'elxlib.version'
+
 ---@type elxlib
-local t = setmetatable({}, {
+local t = setmetatable({version = _version}, {
     ---@param self self
     ---@param name string
     __index = function (self, name)
