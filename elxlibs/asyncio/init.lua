@@ -10,27 +10,26 @@ local tasks = require('elxlibs.asyncio.tasks')
 local loops = require('elxlibs.asyncio.loops')
 
 
-function M.run(fn)
-    local loop = loops.get_running_loop()
-    loop:run_until_complete(loop:create_task(fn))
-end
-
----@param t number
+---@generic T
+---@param fn fun():T
 ---@param loop asyncio.EventLoop?
----@return asyncio.Future<nil>
-function M.sleep(t, loop)
-    local loop = loop or loops.get_running_loop()
-    local fut = loop:create_future()
-    loop:call_later(t, function()
-        fut:set_result()
-    end)
-    return fut
+---@param name string?
+---@return T
+function M.run(fn, loop, name)
+    loop = loop or loops.get_event_loop()
+    return loop:run_until_complete(loop:create_task(fn, name))
 end
 
 M.async = tasks.async
 M.await = tasks.await
 M.try_await = tasks.try_await
+M.current_task = tasks.current_task
 M.create_task = tasks.create_task
+M.sleep = tasks.sleep
+M.wait = tasks.wait
+M.wait_for = tasks.wait_for
+M.gather = tasks.gather
+M.shield = tasks.shield
 M.futures = futures
 M.tasks = tasks
 M.loops = loops

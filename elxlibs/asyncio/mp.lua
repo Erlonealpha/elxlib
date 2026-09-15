@@ -7,12 +7,18 @@ local class = require('elxlibs.std.class')
 
 local type = type
 local table = table
+local error = error
 local pairs = pairs
+local xpcall = xpcall
+local string = string
 local unpack = unpack
 local ipairs = ipairs
 local tonumber = tonumber
 local tostring = tostring
 local setmetatable = setmetatable
+local debug_traceback = debug.traceback
+
+local await = asyncio.await
 
 ---@class asyncio.amp
 local amp = {}
@@ -146,7 +152,7 @@ end
 ---     key: string?,
 ---     fn: binding_callback?,
 ---     rp: (string|table)?
---- )
+--- ):void
 local function add_binding(attrs, key, name, fn, rp)
     if type(name) ~= "string" and name ~= nil then
         ---@diagnostic disable-next-line: assign-type-mismatch
@@ -158,6 +164,7 @@ local function add_binding(attrs, key, name, fn, rp)
 
     ---@cast name string?
     ---@cast fn binding_callback?
+    ---@diagnostic disable-next-line: cast-type-mismatch
     ---@cast rp (string|table)?
 
     rp = rp or ""
@@ -229,6 +236,7 @@ local function add_binding(attrs, key, name, fn, rp)
     key_bindings_dirty = true
     dispatch_key_bindings[name] = key_cb
 
+    ---@diagnostic disable-next-line: param-type-mismatch
     amp.register_script_message(name, msg_cb)
 end
 
@@ -240,7 +248,7 @@ end
 ---     key: string?,
 ---     fn: binding_callback?,
 ---     rp: (string|table)?
---- )
+--- ):void
 function amp.add_key_binding(key, name, fn, rp)
     add_binding({forced=false}, key, name, fn, rp)
 end
@@ -253,7 +261,7 @@ end
 ---     key: string?,
 ---     fn: binding_callback?,
 ---     rp: (string|table)?
---- )
+--- ):void
 function amp.add_forced_key_binding(key, name, fn, rp)
     add_binding({forced=true}, key, name, fn, rp)
 end
@@ -270,12 +278,13 @@ end
 ---@type table<mp_timer, mp_timer>
 local timers = {}
 
+---@diagnostic disable-next-line: missing-fields
 ---@type _mp_timer_mt
 local timer_mt = {}
 timer_mt.__index = timer_mt
 
 ---@param seconds number
----@param cb fun()
+---@param cb fun():void
 ---@param disabled boolean?
 ---@return mp_timer
 function amp.add_timeout(seconds, cb, disabled)
@@ -285,7 +294,7 @@ function amp.add_timeout(seconds, cb, disabled)
 end
 
 ---@param seconds number
----@param cb fun()
+---@param cb fun():void
 ---@param disabled boolean?
 ---@return mp_timer
 function amp.add_periodic_timer(seconds, cb, disabled)
@@ -332,13 +341,30 @@ function timer_mt.is_enabled(t)
 end
 
 -- Return the timer that expires next.
----@return mp_timer?
-local function get_next_timer()
+---@generic T
+---@param scheduled? asyncio.TimerHandle[]
+---@return mp_timer|number?
+---@overload fun():mp_timer?
+---@overload fun(scheduled: asyncio.TimerHandle[]):mp_timer|number?
+local function get_next_timer(scheduled)
     ---@type mp_timer?
     local best = nil
     for t, _ in pairs(timers) do
         if best == nil or t.next_deadline < best.next_deadline then
             best = t
+        end
+    end
+    if scheduled then
+        local _scheduled
+        for _, t in ipairs(scheduled) do
+            if _scheduled then
+                if t.when < best--[[@cast +number]] then
+                    best = t.when
+                end
+            elseif best == nil or t.when < best.next_deadline then
+                best = t.when
+                _scheduled = true
+            end
         end
     end
     return best
@@ -357,24 +383,35 @@ end
 -- Run timers that have met their deadline at the time of invocation.
 -- Return: time>0 in seconds till the next due timer, 0 if there are due timers
 --         (aborted to avoid infinite loop), or nil if no timers
-local function process_timers()
+---@generic T
+---@param scheduled asyncio.TimerHandle[]
+---@return number? wait
+---@return fun()[]? cbs
+local function process_timers(scheduled)
+    ---@type fun()[]
+    local cbs = {}
     local t0 = nil
     while true do
-        local timer = get_next_timer()
+        local timer = get_next_timer(scheduled)
         if not timer then
             return
+        end
+        if type(timer) == "number" then
+            -- Scheduled asyncio callbacks store an absolute deadline, while
+            -- mp.wait_event expects a relative timeout.
+            return math.max(0, timer - mp.get_time()), cbs
         end
         local now = mp.get_time()
         local wait = timer.next_deadline - now
         if wait > 0 then
-            return wait
+            return wait, cbs
         else
             if not t0 then
                 t0 = now  -- first due callback: always executes, remember t0
             elseif timer.next_deadline > t0 then
                 -- don't block forever with slow callbacks and endless timers.
                 -- we'll continue right after checking mpv events.
-                return 0
+                return 0, cbs
             end
 
             if timer.oneshot then
@@ -382,7 +419,7 @@ local function process_timers()
             else
                 timer.next_deadline = now + timer.timeout
             end
-            timer.cb()
+            table.insert(cbs, timer.cb)
         end
     end
 end
@@ -390,7 +427,7 @@ end
 local messages = {}
 
 ---@param name string
----@param fn fun(...)
+---@param fn fun(...):void
 function amp.register_script_message(name, fn)
     messages[name] = fn
 end
@@ -414,11 +451,11 @@ local properties = {}
 
 ---@param name properties_t|string
 ---@param t observe_property_type
----@param cb fun(name:properties_t|string, data?:any)
----@overload fun(name:properties_t|string, t:"native", cb:fun(name:string, data:table|string|number|boolean))
----@overload fun(name:properties_t|string, t:"number", cb:fun(name:string, data:number|int))
----@overload fun(name:properties_t|string, t:"string", cb:fun(name:string, data:string))
----@overload fun(name:properties_t|string, t:"bool",   cb:fun(name:string, data:boolean))
+---@param cb fun(name:properties_t|string, data:any):void
+---@overload fun(name:properties_t|string, t:"native", cb:fun(name:string, data:table|string|number|boolean):void)
+---@overload fun(name:properties_t|string, t:"number", cb:fun(name:string, data:number|int):void)
+---@overload fun(name:properties_t|string, t:"string", cb:fun(name:string, data:string):void)
+---@overload fun(name:properties_t|string, t:"bool",   cb:fun(name:string, data:boolean):void)
 function amp.observe_property(name, t, cb)
     local id = property_id + 1
     property_id = id
@@ -427,7 +464,7 @@ function amp.observe_property(name, t, cb)
     mp.raw_observe_property(id, name, t)
 end
 
----@param cb fun(name:string)
+---@param cb fun(name:string):void
 function amp.unobserve_property(cb)
     for prop_id, prop_cb in pairs(properties) do
         if cb == prop_cb then
@@ -623,7 +660,7 @@ end)
 
 ---@param name mp_hooks
 ---@param pri int
----@param cb fun(ev:mp_hook_event)
+---@param cb fun(ev:mp_hook_event):void
 function amp.add_hook(name, pri, cb)
     local id = #hook_table + 1
     hook_table[id] = cb
@@ -679,7 +716,9 @@ end
 
 ---@class asyncio.EventLoop_mp : asyncio.EventLoop
 ---@overload fun():asyncio.EventLoop_mp
-local EventLoop_mp = class.new('EventLoop_mp', {asyncio.loops.EventLoop})
+local EventLoop_mp = class.new('asyncio.EventLoop_mp', {asyncio.loops.EventLoop})
+
+amp.EventLoop_mp = EventLoop_mp
 
 function EventLoop_mp:time()
     return mp.get_time()
@@ -692,7 +731,8 @@ function EventLoop_mp:_run_once()
     local time = self:time()
     while #self._scheduled > 0 do
         local sche = self._scheduled[1]
-        if sche.when >= time then
+        -- debug_msg('EventLoop_mp:_run_once sche.when', sche.when, 'time', time, sche.func)
+        if sche.when > time then
             break
         end
         table.insert(self._ready, table.remove(self._scheduled, 1))
@@ -700,11 +740,10 @@ function EventLoop_mp:_run_once()
 
     if ntodo > 0 then
         for i = 1, ntodo do
-            local t = table.remove(self._ready, 1)
-            if t.args and #t.args > 0 then
-                t.func(table.unpack(t.args))
-            else
-                t.func()
+            local handle = table.remove(self._ready, 1)
+            if not handle._cancelled then
+                -- debug_msg('EventLoop_mp:_run_once run', handle.func)
+                handle:_run()
             end
         end
     end
@@ -712,36 +751,58 @@ end
 
 local loop = EventLoop_mp()
 local _stoping = false
+local task_id = 0
 ---@type table<int, asyncio.Task<nil>>
 local events_tasks = setmetatable({}, {__mode = 'v'})
 ---@type int[]
 local err_tasks = {}
-local task_id = 0
+---@type fun(ok: boolean, err: string?)[]
+local finally_funcs = {}
 
-_G.mp_event_loop = function ()
-    loop:run_until_complete(loop:create_task(
-    ---@async
-    function()
+local function amp_event_loop()
+    asyncio.run(function()
         while true do
-            asyncio.await()
+            await()
 
             local wait = 0
-            wait = process_timers() or 1e20
+            local cbs
+            wait, cbs = process_timers(loop._scheduled)
+            if not wait then
+                wait = 1e20
+            end
             if #loop._ready ~= 0 or _stoping then
                 wait = 0
             end
+
+            if cbs and #cbs > 0 then
+                for _, cb in ipairs(cbs) do
+                    local t_id = task_id
+                    local t = loop:create_task(function()
+                        local ok, err = xpcall(cb, debug_traceback)
+                        if not ok then
+                            table.insert(err_tasks, t_id)
+                            error(err, 0)
+                        else
+                            events_tasks[t_id] = nil
+                        end
+                    end, string.format('Task-(Timer)-%d', t_id))
+                    events_tasks[t_id] = t
+                    task_id = task_id + 1
+                end
+            end
+
             if wait ~= 0 then
                 for _, handler in ipairs(idle_handlers) do
                     local t_id = task_id
                     local t = loop:create_task(function()
-                        local ok, err = pcall(handler)
+                        local ok, err = xpcall(handler, debug_traceback)
                         if not ok then
                             table.insert(err_tasks, t_id)
-                            error(err)
+                            error(err, 0)
                         else
                             events_tasks[t_id] = nil
                         end
-                    end, 'Task-(idle)')
+                    end, string.format('Task-(idle)-%d', t_id))
                     events_tasks[t_id] = t
                     task_id = task_id + 1
                 end
@@ -757,14 +818,16 @@ _G.mp_event_loop = function ()
                         local t_id = task_id
                         local t = loop:create_task(function()
                             -- debug_msg('event run', _, handler)
-                            local ok, err = pcall(handler, e)
+                            local ok, err = xpcall(function()
+                                return handler(e)
+                            end, debug_traceback)
                             if not ok then
                                 table.insert(err_tasks, t_id)
-                                error(err)
+                                error(err, 0)
                             else
                                 events_tasks[t_id] = nil
                             end
-                        end, 'Task-('..e.event..'.'..(e.args and e.args[1] or '')..')')
+                        end, string.format('Task-(%s)-%d', e.event, t_id))
                         events_tasks[t_id] = t
                         task_id = task_id + 1
                     end
@@ -775,7 +838,7 @@ _G.mp_event_loop = function ()
                 if #err_tasks == 1 then
                     local err = events_tasks[err_tasks[1]]._exception
                     events_tasks[err_tasks[1]] = nil
-                    std.raise(err, 3)
+                    std.raise(err, 0)
                 else
                     local errs = {}
                     for _, t_id in ipairs(err_tasks) do
@@ -783,22 +846,94 @@ _G.mp_event_loop = function ()
                         events_tasks[t_id] = nil
                     end
                     std.raise(table.concat(errs, 
-                        '\nDuring handling of the above exception, another exception occurred:\n'), 3)
+                        '\nDuring handling of the above exception, another exception occurred:\n'), 0)
                 end
             end
 
-            if _stoping then
+            if _stoping and 
+                #loop._ready == 0 and 
+                #loop._scheduled == 0 then
+                -- 这里不等待amp.timer
                 break
             end
         end
         -- debug_msg('End of MainLoop')
-    end, 'Task-AmpMainLoop'))
+    end, loop, 'Task-AmpMainLoop')
+end
+
+_G.mp_event_loop = function ()
+    local ok, err = xpcall(amp_event_loop, debug_traceback)
+    if ok then
+        err = nil
+    end
+    local errs = {}
+    if #finally_funcs > 0 then
+        for _, fn in ipairs(finally_funcs) do
+            local _ok, _err = xpcall(function()
+                return fn(ok, err)
+            end, debug_traceback)
+            if not _ok then
+                table.insert(errs, tostring(err))
+            end
+        end
+    end
+    if err ~= nil then
+        table.insert(errs, 1, tostring(err))
+    end
+    if #errs > 0 then
+        std.raise(table.concat(errs, 
+            '\nDuring handling of the above exception, another exception occurred:\n'), 0)
+    end
 end
 
 amp.register_event("shutdown", function()
     -- debug_msg('shutdown recv')
     _stoping = true
 end)
+
+---@param fn fun(ok: boolean, err: string?)
+function amp.add_finally(fn)
+    table.insert(finally_funcs, fn)
+end
+
+---@param fn fun(ok: boolean, err: string?)
+function amp.remove_finally(fn)
+    for i, func in ipairs(finally_funcs) do
+        if fn == func then
+            table.remove(finally_funcs, i)
+            break
+        end
+    end
+end
+
+-- TODO
+-- ---@class asyncio.amp._sync
+-- local _copy_fields = {}
+-- _copy_fields.set_key_bindings = amp.set_key_bindings
+-- _copy_fields.flush_keybindings = amp.flush_keybindings
+-- _copy_fields.add_key_binding = amp.add_key_binding
+-- _copy_fields.add_forced_key_binding = amp.add_forced_key_binding
+-- _copy_fields.remove_key_binding = amp.remove_key_binding
+-- _copy_fields.add_timeout = amp.add_timeout
+-- _copy_fields.add_periodic_timer = amp.add_periodic_timer
+-- _copy_fields.get_next_timeout = amp.get_next_timeout
+-- _copy_fields.register_script_message = amp.register_script_message
+-- _copy_fields.unregister_script_message = amp.unregister_script_message
+-- _copy_fields.observe_property = amp.observe_property
+-- _copy_fields.unobserve_property = amp.unobserve_property
+-- _copy_fields.register_event = amp.register_event
+-- _copy_fields.unregister_event = amp.unregister_event
+-- _copy_fields.register_idle = amp.register_idle
+-- _copy_fields.unregister_idle = amp.unregister_idle
+-- _copy_fields.add_hook = amp.add_hook
+-- _copy_fields.command_native_async = amp.command_native_async
+-- _copy_fields.abort_async_command = amp.abort_async_command
+
+-- ---@class asyncio.amp.sync: asyncio.amp._sync
+-- amp.sync = setmetatable({}, {
+--     __index = function (t, key)
+--     end
+-- })
 
 local function warning_for_mp(name)
     return function ()
@@ -834,5 +969,9 @@ mp.add_hook = warning_for_mp("add_hook")
 mp.command_native_async = warning_for_mp("command_native_async")
 mp.abort_async_command = warning_for_mp("abort_async_command")
 
+---@diagnostic disable-next-line: inject-field
+mp.asyncio_event_loop = true
+---@diagnostic disable-next-line: inject-field
+mp.amp = amp
 
 return amp

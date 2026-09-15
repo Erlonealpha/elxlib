@@ -3,6 +3,9 @@ local class = require("elxlibs.std.class")
 local asyncio = require("elxlibs.asyncio")
 local exceptions = require("elxlibs.asyncio.exceptions")
 
+local async = asyncio.async
+local raise = std.raise
+
 local M = {}
 
 ---@class asyncio._LoopMixin : std.object
@@ -15,7 +18,7 @@ function _LoopMixin:_get_loop()
         self._loop = loop
     end
     if loop ~= self._loop then
-        std.raise(std.RuntimeError(string.format('%s is bound to a different event loop', self)))
+        raise(std.RuntimeError(string.format('%s is bound to a different event loop', self)))
     end
     return loop
 end
@@ -32,9 +35,9 @@ end
 
 function Lock:__tostring()
     if self._locked then
-        return string.format('<asyncio.Lock(%s) [locked]>', self)
+        return '<asyncio.Lock [locked]>'
     else
-        return string.format('<asyncio.Lock(%s) [unlocked]>', self)
+        return '<asyncio.Lock [unlocked]>'
     end
 end
 
@@ -45,7 +48,7 @@ end
 
 ---@generic T
 ---@param iterable T[]
----@param fn fun(T):boolean
+---@param fn fun(it: T): boolean
 local function all(iterable, fn) 
     for _, it in ipairs(iterable) do
         if not fn(it) then
@@ -56,40 +59,40 @@ local function all(iterable, fn)
 end
 
 ---@async
----@return asyncio.Task<boolean>
+---@return asyncio.Coroutine<boolean>
 function Lock:acquire()
-    return asyncio.async(function()
-        if not self._locked and (self._waiters == nil or 
-            all(self._waiters, function(w) return w.cancelled() end)) then
-            self._locked = true
-            return true
-        end
-
-        if self._waiters == nil then
-            self._waiters = {}
-        end
-        local fut = self:_get_loop():create_future()
-        table.insert(self._waiters, fut)
-
-        local _, err = fut:__try_await()
-
-        for i, w in ipairs(self._waiters) do
-            if fut == w then
-                table.remove(self._waiters, i)
-                break
-            end
-        end
-
-        if type(err) == "table" and std.isinstance(err, exceptions.CancelledError) then
-            if not self._locked then
-                self:_wakeup_first()
-            end
-            error(err)
-        end
-
+return async(function()
+    if not self._locked and (self._waiters == nil or 
+        all(self._waiters, function(w) return w:cancelled() end)) then
         self._locked = true
         return true
-    end)
+    end
+
+    if self._waiters == nil then
+        self._waiters = {}
+    end
+    local fut = self:_get_loop():create_future()
+    table.insert(self._waiters, fut)
+
+    local _, err = fut:__try_await()
+
+    for i, w in ipairs(self._waiters) do
+        if fut == w then
+            table.remove(self._waiters, i)
+            break
+        end
+    end
+
+    if type(err) == "table" and std.isinstance(err, exceptions.CancelledError) then
+        if not self._locked then
+            self:_wakeup_first()
+        end
+        raise(err, 0)
+    end
+
+    self._locked = true
+    return true
+end)
 end
 
 function Lock:release()
@@ -97,7 +100,7 @@ function Lock:release()
         self._locked = false
         self:_wakeup_first()
     else
-        error('Lock is not acquired')
+        raise('Lock is not acquired')
     end
 end
 
@@ -145,28 +148,28 @@ function Event:clear()
 end
 
 ---@async
----@return asyncio.Future<boolean>
+---@return asyncio.Coroutine<boolean>
 function Event:wait()
-    return asyncio.async(function()
-        if self._value then
-            return true
-        end
-        local fut = self:_get_loop():create_future()
-        table.insert(self._waiters, fut)
-
-        local _, err = fut:__try_await()
-
-        for i, w in ipairs(self._waiters) do
-            if fut == w then
-                table.remove(self._waiters, i)
-                break
-            end
-        end
-        if err ~= nil then
-            std.raise(err)
-        end
+return async(function()
+    if self._value then
         return true
-    end)
+    end
+    local fut = self:_get_loop():create_future()
+    table.insert(self._waiters, fut)
+
+    local _, err = fut:__try_await()
+
+    for i, w in ipairs(self._waiters) do
+        if fut == w then
+            table.remove(self._waiters, i)
+            break
+        end
+    end
+    if err ~= nil then
+        raise(err, 0)
+    end
+    return true
+end)
 end
 
 
