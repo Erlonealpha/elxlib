@@ -1,0 +1,97 @@
+---@meta
+
+---@class LrexlibPcre2
+---Lrexlib PCRE2 正则表达式模块
+local rex_pcre2 = {}
+
+---@alias PcrePatternFlags 
+--- | 'i'
+--- | 'm'
+--- | 's'
+--- | 'x'
+--- | 'xx'
+--- | 'n'
+
+---编译并执行正则表达式匹配（单次匹配）。
+---@param subject string 要搜索的源字符串。
+---@param pattern string|lightuserdata|LrexlibPcre2Pattern PCRE2 正则表达式字符串或已编译的模式。
+---@param init? integer 开始搜索的起始字节位置，默认为 1。
+---@param flags? integer|PcrePatternFlags PCRE2 编译/匹配标志。
+---@return string? matched 整个匹配到的子串。如果是通过捕获组调用的，则返回第一个捕获组。若未匹配成功则返回 nil。
+---@return string|integer? ... 如果有括号捕获组，依次返回各个捕获组的文本；若无捕获组且指定了特定标志，可能返回位置索引。
+function rex_pcre2.match(subject, pattern, init, flags) end
+
+---在字符串中查找模式。
+---@param subject string 要搜索的源字符串。
+---@param pattern string|lightuserdata|LrexlibPcre2Pattern PCRE2 正则表达式字符串或已编译的模式。
+---@param init? integer 开始搜索的起始字节位置，默认为 1。
+---@param flags? integer|PcrePatternFlags PCRE2 编译/匹配标志。
+---@return integer? start 匹配成功的起始字节位置。若未匹配成功则返回 nil。
+---@return integer? -end 匹配成功的结束字节位置。
+---@return string? ... 依次返回各个括号捕获组的文本。
+function rex_pcre2.find(subject, pattern, init, flags) end
+
+---全局替换字符串中的匹配项。
+---@param subject string 要搜索和替换的源字符串。
+---@param pattern string|lightuserdata|LrexlibPcre2Pattern PCRE2 正则表达式字符串或已编译的模式。
+---@param repl string|function|table 替换目标：可以是字符串（支持 %1, %2 捕获组）、回调函数或映射表。
+---@param n? integer 限制最大替换次数，默认不限制。
+---@param flags? integer|PcrePatternFlags PCRE2 编译/匹配标志。
+---@param exc_flags? integer PCRE2 执行标志
+---@param larg? integer 库特定标志
+---@return string res 替换完成后的新字符串。
+---@return integer n_matches 找到的匹配项总数。
+---@return string? n_subs 实际发生替换的次数。
+function rex_pcre2.gsub(subject, pattern, repl, n, flags, exc_flags, larg) end
+
+---返回一个迭代器函数，用于在循环中逐个获取匹配项。
+---@param subject string 要搜索的源字符串。
+---@param pattern string|lightuserdata|LrexlibPcre2Pattern PCRE2 正则表达式字符串或已编译的模式。
+---@param flags? integer|PcrePatternFlags PCRE2 编译/匹配标志。
+---@return fun(): string, ... 迭代器函数，每次调用返回下一个匹配的完整子串及各捕获组。
+function rex_pcre2.gmatch(subject, pattern, flags) end
+
+---显式预编译一个正则表达式，生成模式对象以复用，提升高频调用时的性能。
+---@param pattern string PCRE2 正则表达式字符串。
+---@param flags? integer|PcrePatternFlags PCRE2 编译标志（如 'i' 代表忽略大小写）。
+---@return LrexlibPcre2Pattern pattern_obj 编译后的模式对象。
+function rex_pcre2.new(pattern, flags) end
+
+---获取当前集成的底层 PCRE2 库的版本信息。
+---@return string version 底层 PCRE2 的版本号（例如 "10.42 2022-12-11"）。
+function rex_pcre2.version() end
+
+---获取或生成 Lrexlib 的各种内部配置和标志位常量字典（如 rex.flags().CASELESS）。
+---@param tbl? table 可选的注入目标表。
+---@return table flags_table 包含 PCRE2 所有位掩码常量的表格。
+function rex_pcre2.flags(tbl) end
+
+
+---@class LrexlibPcre2Pattern
+---已预编译的 PCRE2 模式对象。
+local pattern_obj = {}
+
+---使用已编译的模式执行单次匹配。
+---@param subject string 要搜索的源字符串。
+---@param init? integer 开始搜索的起始字节位置，默认为 1。
+---@param flags? integer|PcrePatternFlags PCRE2 匹配标志。
+---@return string? matched 匹配到的子串或首个捕获组。
+---@return string? ... 其它捕获组。
+function pattern_obj:match(subject, init, flags) end
+
+---使用已编译的模式执行查找。
+---@param subject string 要搜索的源字符串。
+---@param init? integer 开始搜索的起始字节位置，默认为 1。
+---@param flags? integer|PcrePatternFlags PCRE2 匹配标志。
+---@return integer? start 匹配的起始位置。
+---@return integer? -end 匹配的结束位置。
+---@return string? ... 其它捕获组。
+function pattern_obj:find(subject, init, flags) end
+
+---使用已编译的模式返回一个全局匹配迭代器。
+---@param subject string 要搜索的源字符串。
+---@param flags? integer|PcrePatternFlags PCRE2 匹配标志。
+---@return fun(): string?... 迭代器函数。
+function pattern_obj:gmatch(subject, flags) end
+
+return rex_pcre2
