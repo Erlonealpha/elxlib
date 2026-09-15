@@ -270,6 +270,7 @@ local bor = M.bor
 local lshift, rshift -- forward declare
 
 function M.rshift(a,disp) -- Lua5.2 insipred
+  ---@diagnostic disable-next-line: need-check-nil
   if disp < 0 then return lshift(a,-disp) end
   return floor(a % 2^32 / 2^disp)
 end

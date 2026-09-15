@@ -177,6 +177,7 @@ function _M.get_size(path, recursive)
     if result.status ~= 0 then
         return nil, 'fs.get_size: ' .. result.stderr
     end
+    ---@diagnostic disable-next-line: return-type-mismatch
     return tonumber(result.stdout:match("%d+"))
 end
 

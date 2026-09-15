@@ -1,4 +1,5 @@
 -- @original: https://gist.github.com/Reselim/40d62b17d138cc74335a1b0709e19ce2
+---@diagnostic disable-next-line: access-invisible
 local bit32 = bit32 or require("elxlibs.hashlib.bit")
 
 local Alphabet = {}
@@ -96,6 +97,7 @@ function Base64.Decode(Input)
 		local I3 = (Indexes[C3] or 1) - 1
 		local I4 = (Indexes[C4] or 1) - 1
 
+		---@diagnostic disable-next-line: param-type-mismatch
 		local A = bit32_lshift(I1, 2) + bit32_rshift(I2, 4)
 		local B = bit32_lshift(bit32_band(I2, 15), 4) + bit32_rshift(I3, 2)
 		local C = bit32_lshift(bit32_band(I3, 3), 6) + I4

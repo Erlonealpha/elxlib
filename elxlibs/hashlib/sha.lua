@@ -68,10 +68,14 @@ API:
 --------------------------------------------------------------------------------
 
 local ipairs = ipairs
+---@diagnostic disable-next-line: access-invisible
 local bit32 = bit32 or require("elxlibs.hashlib.bit")
+---@diagnostic disable-next-line: access-invisible
 local table_create = table.create or function(nseq, nrec)
 	return {}
 end
+
+---@alias partial_func fun(message:string):partial_func
 
 --------------------------------------------------------------------------------
 -- 32-BIT BITWISE FUNCTIONS
@@ -1061,6 +1065,9 @@ local function sha512ext(width, message)
 	end
 end
 
+---@param message string
+---@return string
+---@overload fun():partial_func
 local function md5(message)
 	-- Create an instance (private objects for current calculation)
 	local H, length, tail = table_create(4), 0, ""
@@ -1123,6 +1130,9 @@ local function md5(message)
 	end
 end
 
+---@param message string
+---@return string
+---@overload fun():partial_func
 local function sha1(message)
 	-- Create an instance (private objects for current calculation)
 	local H, length, tail = table.pack(table.unpack(md5_sha1_H)), 0, ""
@@ -1485,16 +1495,19 @@ local sha = {
 	md5 = md5,
 	sha1 = sha1,
 	-- SHA2 hash functions:
+	---@param message string
+	---@return string
+	---@overload fun():partial_func
 	sha224 = function(message)
+		---@diagnostic disable-next-line: return-type-mismatch
 		return sha256ext(224, message)
 	end,
-
-	---@alias partial_func fun(message:string):partial_func
 
 	---@param message string
 	---@return string
 	---@overload fun():partial_func
 	sha256 = function(message)
+		---@diagnostic disable-next-line: return-type-mismatch
 		return sha256ext(256, message)
 	end,
 

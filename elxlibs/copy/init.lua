@@ -1,6 +1,9 @@
 ---@class elxcopy
 local copy = {}
 
+---@generic T
+---@param obj T
+---@return T
 function copy.deep_copy(obj)
     if type(obj) ~= 'table' then
         return obj
@@ -12,6 +15,9 @@ function copy.deep_copy(obj)
     return res
 end
 
+---@generic T
+---@param obj T
+---@return T
 function copy.shallow_copy(obj)
     if type(obj) ~= 'table' then
         return obj
