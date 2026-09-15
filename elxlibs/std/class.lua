@@ -3,18 +3,23 @@
 
 local exception = require("elxlibs.std.exception")
 
-local setmetatable  = setmetatable
-local tostring = tostring
-local rawequal = rawequal
+local type = type
+local table = table
+local pairs = pairs
 local rawget = rawget
 local ipairs = ipairs
 local string = string
-local table = table
-local pairs = pairs
-local type = type
+local tostring = tostring
+local rawequal = rawequal
+local setmetatable  = setmetatable
+local raise = exception.raise
+
+local _STD_CLASS_DEBUG = _G._STD_CLASS_DEBUG
 
 
 ---@class std.class
+---@generic T, B: std.object
+---@overload fun(name: `T`, bases?: B[], dict?: table<string, any>):T
 local M = {}
 
 ---@alias __system_class_fields {
@@ -126,7 +131,7 @@ local function _meta_wrap(name, fn)
         if fn then
             return fn(self,...)
         end
-        exception.raise(exception.AttributeError(string.format("%s has no meta method '%s'", tostring(self), name)))
+        raise(exception.AttributeError(string.format("%s has no meta method '%s'", tostring(self), name)))
     end
 end
 
@@ -177,7 +182,7 @@ local META_RUNTIME = {
 
 local class_mt = {}
 
-if not _G._STD_CLASS_DEBUG then
+if not _STD_CLASS_DEBUG then
     class_mt.__metatable = "protected"
 end
 
@@ -205,7 +210,7 @@ end
 
 local instance_mt = {}
 
-if not _G._STD_CLASS_DEBUG then
+if not _STD_CLASS_DEBUG then
     instance_mt.__metatable = "protected"
 end
 
@@ -222,7 +227,7 @@ function instance_mt.__call(obj,...)
     if obj_call ~= nil then
         return obj_call(obj,...)
     end
-    exception.raise(exception.TypeError(string.format("%s object is not callable", tostring(obj))))
+    raise(exception.TypeError(string.format("%s object is not callable", tostring(obj))))
 end
 
 do
@@ -259,7 +264,7 @@ local function _c3_mro_merge(seqs)
         end
         
         if not candidate then
-            exception.raise(exception.TypeError("Inconsistent hierarchy"))
+            raise(exception.TypeError("Inconsistent hierarchy"))
         end
         
         table.insert(result, candidate)
@@ -331,9 +336,10 @@ end
 
 local function _check_final(cls)
     if _register.class[cls].__system.__final then
-        exception.raise(exception.TypeError("class is final"))
+        raise(exception.TypeError("class is final"))
     end
 end
+
 
 local function _new_class(name, bases, dict, opts)
     opts = opts or {}
@@ -362,7 +368,6 @@ local function _new_class(name, bases, dict, opts)
 end
 
 ---@class std.object : table
----@field __init fun(self: std.Class,...)
 ---@field __new  fun(self: std.Class,...): std.object
 ---@field __call fun(self: std.Class,...): std.object
 ---@overload fun(self: std.Class,...): std.object
@@ -374,7 +379,7 @@ local object = _new_class("object", {}, {}, {base_object=true})
 
 local function _check_abstract(cls)
     if _register.class[cls].__system.__abstract then
-        exception.raise(exception.TypeError("class is abstract"))
+        raise(exception.TypeError("class is abstract"))
     end
 end
 
@@ -405,6 +410,12 @@ function object:__init(...) end
 --     _register.object[self] = nil
 -- end
 
+---@generic T, B: std.object
+---@[constructor("__init", "std.object")]
+---@param name `T`
+---@param bases? B[]
+---@param dict? table<string, any>
+---@return T
 function M.new(name, bases, dict)
     return _new_class(name, bases, dict)
 end
@@ -417,7 +428,12 @@ function M.new_final(name, bases)
     return _new_class(name, bases, {}, {final = true})
 end
 
-local function _super_proxy(cls, obj)
+---@generic T : std.object
+---@param cls any
+---@param obj any
+---@param target_type T
+---@return T
+local function _super_proxy(cls, obj, target_type)
     local self = obj or cls -- if obj is nil, then cls is the target class
     local mt = {
         __index = function(_, k)
@@ -430,26 +446,28 @@ local function _super_proxy(cls, obj)
             return v
         end,
         __newindex = function(...)
-            exception.raise(exception.TypeError("cannot modify super class"))
+            raise(exception.TypeError("cannot modify super class"))
         end
     }
-    if not _G._STD_CLASS_DEBUG then
+    if not _STD_CLASS_DEBUG then
         mt.__metatable = "protected"
     end
     return setmetatable({}, mt)
 end
 
 -- Note: `super` returns a proxy type, not class type.
----@generic T: std.object
+---@generic R extends std.object
+---@generic T extends R
 ---@param cls T
 ---@param obj_or_cls? std.object|std.Class
----@return any
-function M.super(cls, obj_or_cls)
+---@param target_type R? only for type check
+---@return R
+function M.super(cls, obj_or_cls, target_type)
     if not M.kindof(cls, "class") then
-        exception.raise(exception.TypeError("cls must be a class type"))
+        raise(exception.TypeError("cls must be a class type"))
     end
     if cls == object then
-        exception.raise(exception.TypeError("object has no super class"))
+        raise(exception.TypeError("object has no super class"))
     end
 
     ---@type std.Class[]
@@ -463,7 +481,7 @@ function M.super(cls, obj_or_cls)
         elseif kind == "class" then
             target_mro = _register.class[obj_or_cls].__system.__mro
         else
-            exception.raise(exception.TypeError("obj_or_cls must be an object or class"))
+            raise(exception.TypeError("obj_or_cls must be an object or class"))
         end
     else
         target_mro = _register.class[cls].__system.__mro
@@ -473,19 +491,20 @@ function M.super(cls, obj_or_cls)
     for i, base in ipairs(target_mro) do
         if base == cls then
             if i < len then
-                return _super_proxy(target_mro[i+1], obj)
+                return _super_proxy(target_mro[i+1], obj, target_type--[[@cast -?]])
             end
-            exception.raise(exception.TypeError(string.format("%s has no super class in target hierarchy", tostring(cls))))
+            raise(exception.TypeError(string.format("%s has no super class in target hierarchy", tostring(cls))))
         end
     end
 
-    exception.raise(exception.TypeError(string.format("%s is not in target hierarchy", tostring(cls))))
+    raise(exception.TypeError(string.format("%s is not in target hierarchy", tostring(cls))))
 end
 
+---@param obj any
+---@param kind "object"|"class"?
+---@overload fun(obj: any): "object"|"class"?
+---@overload fun(obj: any, kind: "object"|"class"): boolean
 function M.kindof(obj, kind)
-    if type(obj) ~= "table" then
-        exception.raise(exception.TypeError("object must be a table"))
-    end
     if _register.object[obj] then
         local typ = _register.object[obj].__system.__type
         if kind then
@@ -507,20 +526,20 @@ end
 
 function M.isabstract(cls)
     if type(cls) ~= "table" then
-        exception.raise(exception.TypeError("class must be a table"))
+        raise(exception.TypeError("class must be a table"))
     end
     if not _register.class[cls] then
-        exception.raise(exception.TypeError("class is not a class type"))
+        raise(exception.TypeError("class is not a class type"))
     end
     return _register.class[cls].__system.__abstract
 end
 
 function M.isfinal(cls)
     if type(cls) ~= "table" then
-        exception.raise(exception.TypeError("class must be a table"))
+        raise(exception.TypeError("class must be a table"))
     end
     if not _register.class[cls] then
-        exception.raise(exception.TypeError("class is not a class type"))
+        raise(exception.TypeError("class is not a class type"))
     end
     return _register.class[cls].__system.__final
 end
@@ -531,10 +550,10 @@ end
 ---@return boolean
 function M.issubclass(cls, clsinfo)
     if not M.kindof(cls, "class") then
-        exception.raise(exception.TypeError("cls must be a class type"))
+        raise(exception.TypeError("cls must be a class type"))
     end
     if not M.kindof(clsinfo, "class") then
-        exception.raise(exception.TypeError("clsinfo must be a class type"))
+        raise(exception.TypeError("clsinfo must be a class type"))
     end
     if cls == clsinfo then
         return true
@@ -550,30 +569,35 @@ function M.issubclass(cls, clsinfo)
 end
 
 ---@generic T: std.object
----@param obj T
----@param cls T|T[]
----@return boolean
+---@param obj any
+---@param cls T|[T...]
+---@return TypeGuard<T>
+---@overload fun(obj: any, cls: T): TypeGuard<T>
+---@overload fun(obj: any, cls: [T...]): TypeGuard<T...>
 function M.isinstance(obj, cls)
     if not M.kindof(obj, "object") then
-        exception.raise(exception.TypeError("expected an object"))
+        return false
     end
     local obj_cls = _register.object[obj].__system.__class
     if M.kindof(cls) == nil then
+        ---@cast cls [T...]
         for _, c in ipairs(cls) do
             if M.issubclass(obj_cls, c) then
                 return true
             end
         end
         return false
+    else
+        ---@cast cls T
+        return M.issubclass(obj_cls, cls)
     end
-    return M.issubclass(obj_cls, cls)
 end
 
 
 M.object = object
 
 local _M_mt = {__call = M.new}
-if not _G._STD_CLASS_DEBUG then
+if not _STD_CLASS_DEBUG then
     _M_mt.__metatable = "protected"
 end
 ---@type std.class

@@ -1,22 +1,16 @@
----@class std.exception
----@field new_exception fun(...:any):any
----@field BaseException std.BaseException
----@field Exception std.Exception
----@field RuntimeError std.RuntimeError
----@field TypeError std.TypeError
----@field ValueError std.ValueError
----@field IndexError std.IndexError
----@field KeyError std.KeyError
----@field AttributeError std.AttributeError
----@field NotImplementedError std.NotImplementedError
----@field AssertionError std.AssertionError
----@field EOFError std.EOFError
----@field IOError std.IOError
----@field OSError std.OSError
----@field ImportError std.ImportError
----@field MemoryError std.MemoryError
----@field TimeoutError std.TimeoutError
+
+
+---@class std.exception : std._exception
 local M = {}
+
+local type = type
+local error = error
+local debug = debug
+local table = table
+local pairs = pairs
+local xpcall = xpcall
+local string = string
+local tostring = tostring
 
 -- following will setup later by exception_exception_init.lua
 -- M.new_exception = nil
@@ -37,21 +31,43 @@ local M = {}
 -- M.MemoryError = nil
 -- M.TimeoutError = nil
 
+---@param err any
+---@param level int?
+---@not_return
 ---@return void
-function M.raise(err)
-    if type(err) == "table" then
-        err.__traceback = debug.traceback()
+function M.raise(err, level)
+    if level ~= nil then
+        if level ~= 0 then
+            level = level + 1
+        end
+    else
+        level = 2
     end
-    error(err)
+    local typ = type(err)
+    if typ == "table" and err.__is_std_exception then
+        if err.__traceback ~= nil then
+            err.__traceback = debug.traceback(err.__traceback, level)
+        else
+            err.__traceback = debug.traceback('', level)
+        end
+        if level == 0 then
+            error(tostring(err), level)
+        else
+            error(err, level)
+        end
+    elseif typ ~= "string" then
+        err = tostring(err)
+    end
+    error(err, level)
 end
 
-function M.traceback(error)
-    if error and error:find("stack traceback:") then
-        return error
+function M.traceback(err)
+    if err and err:find("stack traceback:") then
+        return err
     end
     local result = ""
-    if error then
-        result = result.. error.. "\n"
+    if err then
+        result = result.. err.. "\n"
     end
     result = result.. "stack traceback:\n"
     local level = 2
@@ -84,6 +100,15 @@ function M.trycall(fn, traceback, ...)
     end, ...)
 end
 
+
+-- ---@alias block_main<T...> {[1]: fun(...:any):T...}
+-- ---@alias block_catch<T..., N> {[N]: {catch:fun(err:T):any}}
+-- ---@alias block_finally<T..., N> {finally:fun(ok:boolean, result:T):any}
+-- ---@generic T1, T2, T3
+-- ---@param block block_main<T1>&block_catch<T2, 2>&block_finally<T3, 3>
+-- ---@overload fun(block: block_main<T1>&block_catch<T2, 2>)
+-- ---@overload fun(block: block_main<T1>&block_finally<T3, 2>)
+
 --[[
 try{
     function () end,
@@ -101,8 +126,8 @@ try{
 --- [2]?: {catch:fun(err:T2):any},
 --- [3]?: {finally:fun(ok:boolean, result:T3):any}|any,
 ---}
----@return ...|T1
 function M.try(block)
+    ---@type fun(...:any):T1...
     local try = block[1]
     ---@type { catch: fun(err)?, finally: fun(ok:boolean, result:any)? }
     local fnmap = {}
@@ -113,29 +138,31 @@ function M.try(block)
     end
     local catch = fnmap.catch
     local finally = fnmap.finally
-    local results = table.pack(M.trycall(try))
+    local results = table.pack(xpcall(try, debug.traceback))
     local ok = results[1]
-    if not ok then
-        if catch then
-            catch(results[2])
-        end
+    if not ok and catch then
+        xpcall(function()
+            return catch(results[2])
+        end, debug.traceback)
     end
     if finally then
-        finally(ok, table.unpack(results, 2, #results))
+        finally(ok, table.unpack(results, 2, results.n))
     end
     if not ok and not catch then
-        M.raise(results[2])
+        M.raise(results[2], 2)
     elseif ok then
-        return table.unpack(results, 2, #results)
+        return table.unpack(results, 2, results.n)
     end
 end
 
 ---@param block { [1]: fun(err:any) }
+---@return {catch: fun(err:any)}
 function M.catch(block)
     return {catch = block[1]}
 end
 
 ---@param block { [1]: fun(ok:boolean, result:any) }
+---@return {finally: fun(ok:boolean, result:any)}
 function M.finally(block)
     return {finally = block[1]}
 end
