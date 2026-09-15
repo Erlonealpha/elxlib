@@ -59,6 +59,32 @@ ffi.cdef[[
         DWORD nSize,
         void* Arguments
     );
+
+    BOOL WriteFile(
+        HANDLE       hFile,
+        const void*  lpBuffer,
+        DWORD        nNumberOfBytesToWrite,
+        DWORD*       lpNumberOfBytesWritten,
+        void*        lpOverlapped
+    );
+
+    BOOL ReadFile(
+        HANDLE       hFile,
+        void*        lpBuffer,
+        DWORD        nNumberOfBytesToRead,
+        DWORD*       lpNumberOfBytesRead,
+        void*        lpOverlapped
+    );
+
+    DWORD SetFilePointer(
+        HANDLE       hFile,
+        int32_t      lDistanceToMove,
+        int32_t*     lpDistanceToMoveHigh,
+        DWORD        dwMoveMethod
+    );
+
+    BOOL FlushFileBuffers(HANDLE hFile);
+    BOOL SetEndOfFile(HANDLE hFile);
 ]]
 
 local LOCKFILE_EXCLUSIVE_LOCK = 0x00000002
@@ -260,6 +286,133 @@ function LockFile:unlock()
     else
         local errmsg = get_last_errmsg()
         return false, string.format("Failed to unlock file, %s", errmsg)
+    end
+end
+
+---@param data string
+---@return_overload int
+---@return_overload nil, string
+function LockFile:write(data)
+    if not self.handle then
+        local ok, err = self:open()
+        if not ok then
+            return nil, err
+        end
+    end
+
+    local len = #data
+    local bytes_written = ffi.new("DWORD[1]")
+    local result = ffi.C.WriteFile(
+        self.handle,
+        data,
+        len,
+        bytes_written,
+        nil
+    )
+
+    if result ~= 0 then
+        ---@diagnostic disable-next-line
+        return tonumber(bytes_written[0])
+    else
+        local errmsg = get_last_errmsg()
+        return nil, string.format("Failed to write file, %s", errmsg)
+    end
+end
+
+---@param n int
+---@return_overload int
+---@return_overload nil, string
+function LockFile:seek(n)
+    if not self.handle then
+        return nil, "File not opened"
+    end
+
+    local new_ptr = ffi.new("int32_t[1]")
+    local result = ffi.C.SetFilePointer(
+        self.handle,
+        n,
+        new_ptr,
+        0  -- FILE_BEGIN
+    )
+
+    if result ~= ffi.cast("DWORD", -1) or ffi.C.GetLastError() == 0 then
+        ---@diagnostic disable-next-line
+        return tonumber(result)
+    else
+        local errmsg = get_last_errmsg()
+        return nil, string.format("Failed to seek file, %s", errmsg)
+    end
+end
+
+---@return_overload true
+---@return_overload false, string
+function LockFile:flush()
+    if not self.handle then
+        return false, "File not opened"
+    end
+
+    local result = ffi.C.FlushFileBuffers(self.handle)
+    if result ~= 0 then
+        return true
+    else
+        local errmsg = get_last_errmsg()
+        return false, string.format("Failed to flush file, %s", errmsg)
+    end
+end
+
+---@param n? int
+---@return_overload string
+---@return_overload nil, string
+function LockFile:read(n)
+    if not self.handle then
+        local ok, err = self:open()
+        if not ok then
+            return nil, err
+        end
+    end
+
+    n = n or 4096
+    local buf = ffi.new("char[?]", n)
+    local bytes_read = ffi.new("DWORD[1]")
+    local result = ffi.C.ReadFile(
+        self.handle,
+        buf,
+        n,
+        bytes_read,
+        nil
+    )
+
+    if result ~= 0 then
+        ---@diagnostic disable-next-line
+        return ffi.string(buf, tonumber(bytes_read[0]))
+    else
+        local errmsg = get_last_errmsg()
+        return nil, string.format("Failed to read file, %s", errmsg)
+    end
+end
+
+---@param n? int 截断到指定位置，默认为当前文件指针位置
+---@return_overload true
+---@return_overload false, string
+function LockFile:truncate(n)
+    if not self.handle then
+        return false, "File not opened"
+    end
+
+    if n then
+        -- 先 seek 到指定位置
+        local _, err = self:seek(n)
+        if err then
+            return false, err
+        end
+    end
+
+    local result = ffi.C.SetEndOfFile(self.handle)
+    if result ~= 0 then
+        return true
+    else
+        local errmsg = get_last_errmsg()
+        return false, string.format("Failed to truncate file, %s", errmsg)
     end
 end
 
