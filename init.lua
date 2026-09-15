@@ -4,6 +4,7 @@
 local script_name = ...
 
 local mp = require("mp")
+mp.utils = require 'mp.utils'
 
 
 ---@class elxlib
@@ -17,24 +18,75 @@ local mp = require("mp")
 ---@field std elxstd
 ---@field mptl mptl
 ---@field rex LrexlibPcre2
-
+---@field lockfile elxlockfile
+---@field lxp LuaExpat
+---@field fun FunLib
 
 local debug = false
 if not _G.debug_msg then
-    function debug_msg(...)
+    function debug_msg(arg0, ...)
         if debug then
-            mp.msg.info('DEBUG', ...)
+            if type(arg0) == 'function' then
+                mp.msg.info('DEBUG', arg0(...))
+            else
+                mp.msg.info('DEBUG', arg0, ...)
+            end
         end
     end
 end
 
 local scripts_dir = mp.command_native({"expand-path", "~~/scripts"})
+_G._elxlib_path = scripts_dir .. '/' .. script_name
+_G._mpv_path = mp.command_native({"expand-path", "~~exe_dir/"})
 package.path = package.path .. ";" .. scripts_dir .. "/?.lua"
 package.path = package.path .. ";" .. scripts_dir .. "/?/init.lua"
 package.cpath = package.cpath .. ";" .. scripts_dir .. "/?.dll"
-_G._elxlib_path = scripts_dir .. '/' .. script_name
+package.cpath = package.cpath .. string.format(';%s/bin/?.dll', _G._elxlib_path)
 local lib_prefix = script_name .. '.'
 
+
+local function add_bin_dllpath()
+    local ffi = require("ffi")
+
+    local function to_wchar(lua_str)
+        local CP_UTF8 = 65001
+        -- Find required buffer size
+        local len = ffi.C.MultiByteToWideChar(CP_UTF8, 0, lua_str, -1, nil, 0)
+        if len == 0 then return nil end
+        
+        -- Allocate and fill the wchar_t array
+        local buf = ffi.new("wchar_t[?]", len)
+        ffi.C.MultiByteToWideChar(CP_UTF8, 0, lua_str, -1, buf, len)
+        return buf
+    end
+
+    ffi.cdef[[
+        typedef uint16_t wchar_t;
+        int MultiByteToWideChar(
+            unsigned int CodePage, 
+            unsigned long dwFlags, 
+            const char* lpMultiByteStr, 
+            int cbMultiByte, 
+            wchar_t* lpWideCharStr, 
+            int cchWideChar
+        );
+        int _wputenv(const wchar_t* envstring);
+    ]]
+
+    local msvcrt = ffi.load("msvcrt")
+
+    local env_path = os.getenv("PATH") or ""
+    local bin_dir = string.format("%s\\bin", _G._elxlib_path)
+    bin_dir = bin_dir:gsub("[\\/]$", ""):gsub("/", "\\")
+    local new_env_path = string.format("PATH=%s;%s", bin_dir, env_path)
+
+    local wdir = to_wchar(new_env_path)
+
+    local result = msvcrt._wputenv(wdir)
+    if result ~= 0 then
+        print("Warning: Add dll path to env failed.")
+    end
+end
 
 ---@param str string
 ---@param pattern string
@@ -109,16 +161,20 @@ local function find_sub_modules(module)
     local sub_modules = {}
     if dirs ~= nil then
         for _, dir in ipairs(dirs) do
-            local module_ = table.concat({module, dir}, '.')
-            for _, module__ in ipairs(find_sub_modules(module_)) do
-                table.insert(sub_modules, module__)
+            if dir ~= "meta" then
+                local module_ = table.concat({module, dir}, '.')
+                for _, module__ in ipairs(find_sub_modules(module_)) do
+                    table.insert(sub_modules, module__)
+                end
             end
         end
     end
     if files ~= nil then
         for _, file in ipairs(files) do
             local f = strip_ext(file)
-            if f ~= "init" then
+            if f == "init" or f == "meta" then
+                -- continue
+            else
                 table.insert(sub_modules, table.concat({module, f}, '.'))
             end
         end
@@ -157,5 +213,7 @@ local t = setmetatable({}, {
         return backend
     end
 })
+
+add_bin_dllpath()
 
 return t
