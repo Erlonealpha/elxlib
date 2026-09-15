@@ -46,7 +46,6 @@ function mptl.subprocess_async(opts, cb)
     end
     opts.name = "subprocess"
     return mp.command_native_async(opts, cb)
-
 end
 
 return mptl
