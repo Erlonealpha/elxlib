@@ -263,7 +263,7 @@ end
 
 -- META
 ---@generic T
----@param func fun(...):T
+---@param func fun():T
 ---@return asyncio.Coroutine<T>
 local function async(func)
     return coroutines.Coroutine(func)
