@@ -1,5 +1,5 @@
 ---@class hashlib : hashlib.sha
-local M = {version = "1.0.0"}
+local M = {version = "1.1.0"}
 
 local sha = require "elxlibs.hashlib.sha"
 local base64 = require "elxlibs.hashlib.base64"
