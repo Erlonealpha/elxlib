@@ -135,7 +135,7 @@ function Future:_get_loop()
 end
 
 ---@async
----@return T
+---@return T...
 function Future:__await()
     if not self:done() then
         -- debug_msg('Future:__await', self._name)
@@ -152,19 +152,27 @@ function Future:__await()
 end
 
 ---@async
----@return T?, any?
+---@return boolean, T...|any
 function Future:__try_await()
-    local err
     if not self:done() then
-        err = coroutine_yield(self)
+        local err = coroutine_yield(self)
+        if err then
+            return false, err
+        end
     end
     if not self:done() then
         raise(exception.RuntimeError("await wasn't used with future."))
     end
-    if self._exception ~= nil then
-        return nil, self._exception
+    if self:cancelled() then
+        -- cancellation is a result like any other for try_await: report it as
+        -- (false, CancelledError) instead of raising, so callers (Timeout:with,
+        -- lock/queue waiters, sleep, ...) can handle it.
+        return false, self:_make_cancelled_error()
     end
-    return self:result(), err
+    if self._exception ~= nil then
+        return false, self._exception
+    end
+    return true, self:result()
 end
 
 function Future:__schedule_callbacks()

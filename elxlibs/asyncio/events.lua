@@ -1,9 +1,8 @@
 local std = require 'elxlibs.std'
 
 local table = table
-local xpcall = xpcall
+local xpcall = std.xpcall
 local string = string
-local debug_traceback = debug.traceback
 local raise = std.raise
 
 local events = {}
@@ -34,9 +33,9 @@ function Handle:_run()
     if self.args ~= nil and #self.args > 0 then
         ok, err = xpcall(function()
             self.func(table.unpack(self.args))
-        end, debug_traceback)
+        end)
     else
-        ok, err = xpcall(self.func, debug_traceback)
+        ok, err = xpcall(self.func)
     end
     if not ok then
         self.loop:call_exception_handler{
@@ -64,7 +63,7 @@ local _running_loop = {loop = nil}
 
 --- @return asyncio.EventLoop
 function events.get_event_loop()
-    local curr = events.get_running_loop()
+    local curr = events._get_running_loop()
     if curr == nil then
         curr = require('elxlibs.asyncio.loops').new_event_loop()
     end

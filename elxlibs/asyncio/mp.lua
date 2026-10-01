@@ -9,14 +9,16 @@ local type = type
 local table = table
 local error = error
 local pairs = pairs
-local xpcall = xpcall
 local string = string
 local unpack = unpack
 local ipairs = ipairs
+local raise = std.raise
+local xpcall = std.xpcall
 local tonumber = tonumber
 local tostring = tostring
+local async = asyncio.async
+local traceback = std.traceback
 local setmetatable = setmetatable
-local debug_traceback = debug.traceback
 
 local await = asyncio.await
 
@@ -449,13 +451,14 @@ end
 local property_id = 0
 local properties = {}
 
----@param name properties_t|string
+---@generic N = (properties_t|string)
+---@param name N
 ---@param t observe_property_type
----@param cb fun(name:properties_t|string, data:any):void
----@overload fun(name:properties_t|string, t:"native", cb:fun(name:string, data:table|string|number|boolean):void)
----@overload fun(name:properties_t|string, t:"number", cb:fun(name:string, data:number|int):void)
----@overload fun(name:properties_t|string, t:"string", cb:fun(name:string, data:string):void)
----@overload fun(name:properties_t|string, t:"bool",   cb:fun(name:string, data:boolean):void)
+---@param cb fun(name:N, data:any):void
+---@overload fun(name:N, t:"native", cb:fun(name:N, data:table|string|number|boolean):void)
+---@overload fun(name:N, t:"number", cb:fun(name:N, data:number|int):void)
+---@overload fun(name:N, t:"string", cb:fun(name:N, data:string):void)
+---@overload fun(name:N, t:"bool",   cb:fun(name:N, data:boolean):void)
 function amp.observe_property(name, t, cb)
     local id = property_id + 1
     property_id = id
@@ -485,29 +488,23 @@ end
 local event_handlers = {}
 
 
----@alias mp_ev_start_file         {id:int, event:string, error:string?,
----                                 playlist_entry_id: int}
----@alias mp_ev_end_file           {id:int, event:string, error:string?,
----                                 reason: "eof"|"stop"|"quit"|"error"|"redirect"|"unknown",
+---@alias mp_ev_base               {id:int, event:string, error:string?}
+---@alias mp_ev_start_file         mp_ev_base & {playlist_entry_id: int}
+---@alias mp_ev_end_file           mp_ev_base & {reason: "eof"|"stop"|"quit"|"error"|"redirect"|"unknown",
 ---                                 playlist_entry_id: int,
 ---                                 playlist_insert_id: int?,
 ---                                 playlist_insert_num_entries: table[]?}
----@alias mp_ev_file_loaded        {id:int, event:string, error:string?}
----@alias mp_ev_seek               {id:int, event:string, error:string?}
----@alias mp_ev_playback_restart   {id:int, event:string, error:string?}
----@alias mp_ev_shutdown           {id:int, event:string, error:string?}
----@alias mp_ev_log_message        {id:int, event:string, error:string?,
----                                 prefix: string, level: string, text: string}
----@alias mp_ev_hook               {id:int, event:string, error:string?, 
----                                 hook_id:int}
----@alias mp_ev_command_reply      {id:int, event:string, error:string?, 
----                                 result:string}
----@alias mp_ev_client_message     {id:int, event:string, error:string?,
----                                 args: any[]}
----@alias mp_ev_video_reconfig     {id:int, event:string, error:string?}
----@alias mp_ev_audio_reconfig     {id:int, event:string, error:string?}
----@alias mp_ev_property_change    {id:int, event:string, error:string?,
----                                 name:string, data:any}
+---@alias mp_ev_file_loaded        mp_ev_base
+---@alias mp_ev_seek               mp_ev_base
+---@alias mp_ev_playback_restart   mp_ev_base
+---@alias mp_ev_shutdown           mp_ev_base
+---@alias mp_ev_log_message        mp_ev_base & {prefix: string, level: string, text: string}
+---@alias mp_ev_hook               mp_ev_base & {hook_id:int}
+---@alias mp_ev_command_reply      mp_ev_base & {result:string}
+---@alias mp_ev_client_message     mp_ev_base & {args: any[]}
+---@alias mp_ev_video_reconfig     mp_ev_base
+---@alias mp_ev_audio_reconfig     mp_ev_base
+---@alias mp_ev_property_change    mp_ev_base & {name:string, data:any}
 
 ---@param name string
 ---@param cb fun(ev:table)
@@ -756,8 +753,60 @@ local task_id = 0
 local events_tasks = setmetatable({}, {__mode = 'v'})
 ---@type int[]
 local err_tasks = {}
----@type fun(ok: boolean, err: string?)[]
+---@type fun()[]
 local finally_funcs = {}
+local finally_called = false
+---@type asyncio.Task<any>[]?
+local finally_tasks = nil
+---@type string[]
+local finally_errs = {}
+
+-- Start the registered finally callbacks as tasks on the running loop.
+-- IMPORTANT: they must NOT be awaited inline from the event loop body, because
+-- that would suspend the only code path that calls mp.wait_event(): every
+-- callback that waits for an mpv event (command-reply, property-change, ...)
+-- would then never make progress and the loop would keep spinning instead of
+-- shutting down. They are started here and the loop keeps pumping mpv events
+-- until finally_done() reports that they all finished.
+local function start_finally()
+    finally_called = true
+    local ts = {}
+    for _, fn in ipairs(finally_funcs) do
+        table.insert(ts, asyncio.create_task(fn))
+    end
+    finally_tasks = (#ts > 0) and ts or nil
+end
+
+-- True once every finally callback has finished; collects their errors.
+local function finally_done()
+    local ts = finally_tasks
+    if ts == nil then
+        return true
+    end
+    for _, t in ipairs(ts) do
+        if not t:done() then
+            return false
+        end
+    end
+    for _, t in ipairs(ts) do
+        -- a cancelled finally callback is not an error worth reporting
+        local ok, exc = pcall(t.exception, t)
+        if ok and exc ~= nil then
+            table.insert(finally_errs, tostring(exc))
+        end
+    end
+    finally_tasks = nil
+    return true
+end
+
+-- Errors raised by event/timer tasks may only be reported once the finally
+-- callbacks had their chance to run.
+local function err_report_allowed()
+    if not finally_called and #finally_funcs > 0 then
+        return false
+    end
+    return finally_done()
+end
 
 local function amp_event_loop()
     asyncio.run(function()
@@ -770,15 +819,21 @@ local function amp_event_loop()
             if not wait then
                 wait = 1e20
             end
-            if #loop._ready ~= 0 or _stoping then
+            local idle = true
+            if #loop._ready ~= 0 then
                 wait = 0
+            elseif _stoping then
+                -- keep pumping mpv events while the finally callbacks run, but
+                -- don't busy spin on mp.wait_event(0) either
+                idle = false
+                wait = math.min(wait, 0.02)
             end
 
             if cbs and #cbs > 0 then
                 for _, cb in ipairs(cbs) do
                     local t_id = task_id
                     local t = loop:create_task(function()
-                        local ok, err = xpcall(cb, debug_traceback)
+                        local ok, err = xpcall(cb)
                         if not ok then
                             table.insert(err_tasks, t_id)
                             error(err, 0)
@@ -791,11 +846,11 @@ local function amp_event_loop()
                 end
             end
 
-            if wait ~= 0 then
+            if idle and wait ~= 0 then
                 for _, handler in ipairs(idle_handlers) do
                     local t_id = task_id
                     local t = loop:create_task(function()
-                        local ok, err = xpcall(handler, debug_traceback)
+                        local ok, err = xpcall(handler)
                         if not ok then
                             table.insert(err_tasks, t_id)
                             error(err, 0)
@@ -820,7 +875,7 @@ local function amp_event_loop()
                             -- debug_msg('event run', _, handler)
                             local ok, err = xpcall(function()
                                 return handler(e)
-                            end, debug_traceback)
+                            end, nil, 2)
                             if not ok then
                                 table.insert(err_tasks, t_id)
                                 error(err, 0)
@@ -834,27 +889,46 @@ local function amp_event_loop()
                 end
             end
 
-            if #err_tasks > 0 then
+            if #err_tasks > 0 and _stoping then
+                -- shutdown: keep the errors and report them once the finally
+                -- callbacks have finished (see _G.mp_event_loop)
+                for _, t_id in ipairs(err_tasks) do
+                    local t = events_tasks[t_id]
+                    if t ~= nil and t._exception ~= nil then
+                        table.insert(finally_errs, tostring(t._exception))
+                    end
+                    events_tasks[t_id] = nil
+                end
+                err_tasks = {}
+            elseif #err_tasks > 0 and err_report_allowed() then
                 if #err_tasks == 1 then
-                    local err = events_tasks[err_tasks[1]]._exception
+                    local t = events_tasks[err_tasks[1]]
+                    local err = t and t._exception
                     events_tasks[err_tasks[1]] = nil
-                    std.raise(err, 0)
+                    err_tasks = {}
+                    raise(err or 'unknown error in event task', 0)
                 else
                     local errs = {}
                     for _, t_id in ipairs(err_tasks) do
-                        table.insert(errs, tostring(events_tasks[t_id]._exception))
+                        local t = events_tasks[t_id]
+                        if t ~= nil and t._exception ~= nil then
+                            table.insert(errs, tostring(t._exception))
+                        end
                         events_tasks[t_id] = nil
                     end
-                    std.raise(table.concat(errs, 
+                    err_tasks = {}
+                    raise(table.concat(errs, 
                         '\nDuring handling of the above exception, another exception occurred:\n'), 0)
                 end
             end
 
-            if _stoping and 
-                #loop._ready == 0 and 
-                #loop._scheduled == 0 then
-                -- 这里不等待amp.timer
-                break
+            if _stoping then
+                if not finally_called and #finally_funcs > 0 then
+                    start_finally()
+                end
+                if finally_done() and #loop._ready == 0 and #err_tasks == 0 then
+                    break
+                end
             end
         end
         -- debug_msg('End of MainLoop')
@@ -862,26 +936,22 @@ local function amp_event_loop()
 end
 
 _G.mp_event_loop = function ()
-    local ok, err = xpcall(amp_event_loop, debug_traceback)
-    if ok then
-        err = nil
+    local ok, err = xpcall(amp_event_loop)
+    if not ok and err ~= nil then
+        table.insert(finally_errs, 1, tostring(err))
     end
-    local errs = {}
-    if #finally_funcs > 0 then
-        for _, fn in ipairs(finally_funcs) do
-            local _ok, _err = xpcall(function()
-                return fn(ok, err)
-            end, debug_traceback)
-            if not _ok then
-                table.insert(errs, tostring(err))
-            end
+    if not finally_called and #finally_funcs > 0 then
+        -- the loop ended before the shutdown path ran (e.g. a task error killed
+        -- the main loop task): still run the finally callbacks, pumping events
+        -- until they are done
+        _stoping = true
+        local ok2, err2 = xpcall(amp_event_loop)
+        if not ok2 and err2 ~= nil then
+            table.insert(finally_errs, tostring(err2))
         end
     end
-    if err ~= nil then
-        table.insert(errs, 1, tostring(err))
-    end
-    if #errs > 0 then
-        std.raise(table.concat(errs, 
+    if #finally_errs > 0 then
+        raise(table.concat(finally_errs, 
             '\nDuring handling of the above exception, another exception occurred:\n'), 0)
     end
 end
@@ -891,12 +961,14 @@ amp.register_event("shutdown", function()
     _stoping = true
 end)
 
----@param fn fun(ok: boolean, err: string?)
+--- The callback runs as a task on the event loop while mpv events keep being
+--- pumped, so it may be a plain function or an async function/coroutine.
+---@param fn fun()
 function amp.add_finally(fn)
     table.insert(finally_funcs, fn)
 end
 
----@param fn fun(ok: boolean, err: string?)
+---@param fn fun()
 function amp.remove_finally(fn)
     for i, func in ipairs(finally_funcs) do
         if fn == func then
@@ -937,7 +1009,7 @@ end
 
 local function warning_for_mp(name)
     return function ()
-        local extra = debug.traceback()
+        local extra = traceback()
         -- local extra
         -- if info ~= nil then
         --     extra = string.format('\n    (from %s:%d)', info.short_src, info.linedefined)

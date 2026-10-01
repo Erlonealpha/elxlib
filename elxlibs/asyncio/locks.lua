@@ -74,7 +74,10 @@ return async(function()
     local fut = self:_get_loop():create_future()
     table.insert(self._waiters, fut)
 
-    local _, err = fut:__try_await()
+    local ok, err = fut:__try_await()
+    if ok then
+        err = nil
+    end
 
     for i, w in ipairs(self._waiters) do
         if fut == w then
@@ -157,7 +160,10 @@ return async(function()
     local fut = self:_get_loop():create_future()
     table.insert(self._waiters, fut)
 
-    local _, err = fut:__try_await()
+    local ok, err = fut:__try_await()
+    if ok then
+        err = nil
+    end
 
     for i, w in ipairs(self._waiters) do
         if fut == w then

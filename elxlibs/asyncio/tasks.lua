@@ -5,14 +5,24 @@ local coroutines = require("elxlibs.asyncio.coroutine")
 local futures = require("elxlibs.asyncio.futures")
 local loops = require("elxlibs.asyncio.loops")
 
+local timeouts
+local function get_timeouts()
+    -- EmmyluaBUG for `timeouts = require(...)` timeouts => `nerver?`
+    local t = require("elxlibs.asyncio.timeouts")
+    timeouts = t
+    return t
+end
+
 
 local type = type
 local table = table
 local string = string
-local xpcall = xpcall
+local pack = table.pack
+local xpcall = std.xpcall
 local tostring = tostring
+local unpack = table.unpack
 local setmetatable  = setmetatable
-local debug_traceback = debug.traceback
+local traceback = std.traceback
 
 local raise = std.raise
 
@@ -97,6 +107,7 @@ function Task:__init(coro, loop, name)
     self._fut_waiter = nil
     self._num_cancels_requested = 0
     self._must_cancel = false
+    self._started = false
     _register_task(self)
 end
 
@@ -133,8 +144,9 @@ function Task:cancel(msg)
     return true
 end
 
+---@return integer 未完成（pending）的取消请求数量，语义同 CPython 的 Task.cancelling()
 function Task:cancelling()
-    return self._num_cancels_requested > 0
+    return self._num_cancels_requested
 end
 
 function Task:uncancel()
@@ -152,7 +164,14 @@ function Task:__step(exc)
     if self:done() then
         raise(exceptions.InvalidStateError("Task:__step() Task already done"))
     end
-    if self._must_cancel then
+    -- A coroutine that has not started yet cannot receive an exception through
+    -- coroutine.resume(co, exc): a value passed to the first resume becomes the
+    -- coroutine body's argument and is dropped for a zero-argument body. So a
+    -- cancel requested before the first step must be delivered at the first
+    -- suspension point instead (see below).
+    local first_step = not self._started
+    self._started = true
+    if self._must_cancel and not first_step and coroutine_status(self._thr) ~= "dead" then
         if not std.isinstance(exc, exceptions.CancelledError) then
             exc = self:_make_cancelled_error()
         end
@@ -162,35 +181,37 @@ function Task:__step(exc)
 
     _enter_task(self._loop, self)
     local _ok, _err = xpcall(function()
-        local ok, result
+        local res
         if exc ~= nil then
             -- debug_msg('Task:__step', self._name, 'resume with exc', exc)
-            ok, result = coroutine_resume(self._thr, exc)
+            res = pack(coroutine_resume(self._thr, exc))
         else
-            ok, result = coroutine_resume(self._thr)
+            res = pack(coroutine_resume(self._thr))
         end
+        local ok = res[1]
+        local arg1 = res[2]
 
-        -- debug_msg('Task:__step', self._name, ok, result)
+        -- debug_msg('Task:__step', self._name, ok, arg1)
         if not ok then
-            if std.isinstance(result, exceptions.CancelledError) then
+            if std.isinstance(arg1, exceptions.CancelledError) then
                 -- debug_msg('Task:__step', self._name, 'CancelledError')
-                self._cancelled_exc = result
+                self._cancelled_exc = arg1
                 std.super(Task, self, futures.Future):cancel(self._cancel_msg)
             else
                 local err
-                if result.__is_std_exception then
-                    if result.__traceback == nil then
-                        result.__traceback = debug_traceback(self._thr, result, 0)
+                if arg1.__is_std_exception then
+                    if arg1.__traceback == nil then
+                        arg1.__traceback = traceback(self._thr, tostring(arg1), 0)
                     end
-                    err = result
+                    err = arg1
                 else
-                    if type(result) ~= "string" then
-                        result = tostring(result)
+                    if type(arg1) ~= "string" then
+                        arg1 = tostring(arg1)
                     end
-                    if not result:match('stack traceback') then
-                        err = debug_traceback(self._thr, result, 0)
+                    if not arg1:find('stack traceback') then
+                        err = traceback(self._thr, arg1, 0)
                     else
-                        err = result
+                        err = arg1
                     end
                 end
                 -- debug_msg('Task:__step', self._name, 'recv err:', err)
@@ -200,32 +221,52 @@ function Task:__step(exc)
             return
         end
 
+        if self._must_cancel then
+            if coroutine_status(self._thr) == "dead" then
+                -- finished without ever awaiting: cancel the task outright
+                self._must_cancel = false
+                self._cancelled_exc = self:_make_cancelled_error()
+                std.super(Task, self, futures.Future):cancel(self._cancel_msg)
+                _unregister_task(self)
+                return
+            elseif std.isinstance(arg1, futures.Future) then
+                -- cancellation requested before the first resume: hand it to the
+                -- future the coroutine just suspended on, so it is delivered as
+                -- a CancelledError at that await point
+                if arg1:cancel(self._cancel_msg) then
+                    self._must_cancel = false
+                end
+            end
+            -- else: still suspended without a future, keep _must_cancel set so
+            -- that it is delivered at the next suspension point
+        end
+
         if coroutine_status(self._thr) == "dead" then
             -- debug_msg(self._name, 'dead')
-            std.super(Task, self):set_result(result)
+            std.super(Task, self):set_result(unpack(res, 2, res.n))
             _unregister_task(self)
             return
         end
 
-        if result == nil then
+        if arg1 == nil or arg1 == coroutines.co_empty or arg1 == coroutines.co_skip then
             -- debug_msg('Task:__step yield empty', self._name)
             self._loop:call_soon(self.__step, {self})
         else
-            if std.isinstance(result, futures.Future) then
-                if result._loop ~= self._loop then
+            if std.isinstance(arg1, futures.Future) then
+                if arg1._loop ~= self._loop then
                     self._loop:call_soon(
                         self.__step, 
-                        {self, std.RuntimeError("Task expected a Future in the same loop, got " .. tostring(result))})
+                        {self, std.RuntimeError("Task expected a Future in the same loop, got " .. tostring(arg1))})
                     -- debug_msg('Task:__step not same loop', self._name)
                 else
-                    if result == self then
+                    if arg1 == self then
                         -- debug_msg('Task:__step cannot wait for itself', self._name)
                         self._loop:call_soon(self.__step, 
                             {self, std.RuntimeError("Task cannot wait for itself")})
                     else
-                        -- debug_msg('Task:__step', self._name, 'yield future', result)
-                        self._fut_waiter = result
-                        result:add_done_callback(function(fut)
+                        -- debug_msg('Task:__step', self._name, 'yield future', arg1)
+                        self._fut_waiter = arg1
+                        arg1:add_done_callback(function(fut)
                             self:__wakeup(fut)
                         end)
                     end
@@ -233,10 +274,10 @@ function Task:__step(exc)
             else
                 -- debug_msg('Task:__step got wrong Future', self._name)
                 self._loop:call_soon(self.__step, 
-                    {self, std.RuntimeError("Task expected a Future, got " .. type(result))})
+                    {self, std.RuntimeError("Task expected a Future, got " .. type(arg1))})
             end
         end
-    end, debug_traceback)
+    end)
     _leave_task(self._loop, self)
     if not _ok then
         raise(_err, 0)
@@ -263,6 +304,7 @@ end
 
 -- META
 ---@generic T
+---@nodiscard
 ---@param func fun():T
 ---@return asyncio.Coroutine<T>
 local function async(func)
@@ -279,7 +321,7 @@ local _async = coroutines.Coroutine
 ---@overload fun(awaitable: nil): nil
 local function await(awaitable)
     if awaitable == nil then
-        local err = coroutine_yield()
+        local err = coroutine_yield(coroutines.co_empty)
         if err then
             raise(err, 0)
         end
@@ -296,14 +338,15 @@ end
 ---@generic T
 ---@param awaitable asyncio.Awaitable<T>?
 ---@return T?, any?
----@overload fun(awaitable: asyncio.Awaitable<T>): T
----@overload fun(awaitable: nil): nil, any?
+---@overload fun(awaitable: asyncio.Awaitable<T>): true, T...
+---@overload fun(awaitable: nil): false, any
 local function try_await(awaitable)
     if awaitable == nil then
-        local err = coroutine_yield()
+        local err = coroutine_yield(coroutines.co_empty)
         return nil, err
     end
     if std.isinstance(awaitable, _async) then
+        ---@diagnostic disable-next-line: redundant-return-value
         ---@cast awaitable asyncio.Coroutine<T>
         return coroutines.coro_try_await(awaitable)
     end
@@ -333,9 +376,9 @@ return _async(function()
     local handle = loop:call_later(delay, function()
         fut:set_result()
     end)
-    local _, err = try_await(fut)
+    local ok, err = try_await(fut)
     handle:cancel()
-    if err ~= nil then
+    if not ok then
         raise(err, 0)
     end
 end)
@@ -380,14 +423,14 @@ return _async(function()
         f.add_done_callback(on_complete)
     end
 
-    local _, err = try_await(waiter)
+    local ok, err = try_await(waiter)
     if timeout_handle ~= nil then
         timeout_handle:cancel()
     end
     for _, f in ipairs(fs) do
         f.remove_done_callback(on_complete)
     end
-    if err ~= nil then
+    if not ok then
         raise(err, 0)
     end
 end)
@@ -397,8 +440,29 @@ end
 ---@param fut asyncio.Future<any>
 ---@param timeout? number
 local function wait_for(fut, timeout)
-    raise(std.NotImplementedError())
 return _async(function()
+    if timeout and timeout <= 0 then
+        if fut:done() then
+            return fut:result()
+        end
+        local waiter = loops.get_running_loop():create_future()
+        local cb = function()
+            if not waiter:done() then
+                waiter:set_result()
+            end
+        end
+        fut:add_done_callback(cb)
+        fut:cancel()
+        local ok, err = try_await(waiter)
+        fut:remove_done_callback(cb)
+        if not ok then
+            raise(err, 0)
+        end
+        -- the future was still pending when its deadline had already passed:
+        -- it cannot make it any more, so report the timeout (like CPython)
+        raise(std.TimeoutError(), nil, fut:_make_cancelled_error())
+    end
+    return await((timeouts or get_timeouts()).timeout(timeout):with(fut))
 end)
 end
 
@@ -435,6 +499,7 @@ end
 ---@param fs asyncio.Future<T>[]
 ---@param return_exceptions boolean?
 ---@return asyncio.Future<T[]>
+---@overload fun(fs:asyncio.Future<T>[], return_exceptions:true):asyncio.Future<{result:T, exception:any}[]>
 local function gather(fs, return_exceptions)
     if #fs <= 0 then
         local loop = loops.get_running_loop()
@@ -483,9 +548,12 @@ local function gather(fs, return_exceptions)
                 if fu:cancelled() then
                     res = exceptions.CancelledError(fu._cancel_msg or '')
                 else
-                    res = fu:exception()
-                    if res == nil then
+                    local exc = fu:exception()
+                    if exc == nil then
                         res = fu:result()
+                    end
+                    if return_exceptions then
+                        res = {result = res, exception = exc}
                     end
                 end
                 table.insert(results, res)
@@ -517,6 +585,12 @@ local function gather(fs, return_exceptions)
 
     ---@cast loop asyncio.EventLoop
     outer = _GatheringFuture(children, loop)
+    -- children that were already done when gather() was called never received a
+    -- done callback, so they must be accounted for explicitly -- otherwise
+    -- `finished` never reaches `futs` and the gathering future never completes
+    for _, fut in ipairs(done_futs) do
+        done_cb(fut)
+    end
     return outer
 end
 
