@@ -18,7 +18,7 @@ A Lua script integration library for MPV / mpv.net. elxlib collects common Lua u
 
 - Current hard requirement: Windows / `win32` and LuaJIT.
 - The main target environment is MPV / mpv.net scripting. The entry module depends on `mp` and `mp.utils`.
-- When using `mpv.net`, make sure `libmpv` dynamically links Lua. Builds with statically linked Lua may crash when C extensions are loaded. Dynamic-link builds are available from [Releases](https://github.com/Erlonealpha/elxlib/releases).
+- When using `mpv.net`, make sure `libmpv` dynamically links Lua. Builds with statically linked Lua may crash when C extensions are loaded. Dynamic-link builds are available from [Releases](https://github.com/Erlonealpha/elxlib/releases/tag/mpvdll) (windows only).
 - `fs` / `aiofs` depend on `bin/fstool.exe`; modules such as `rex`, `lxp` and `cjson` depend on the DLLs bundled in `bin` (`bin/` is not part of the repository, see Releases).
 
 ## Installation
