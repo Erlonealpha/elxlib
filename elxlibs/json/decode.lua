@@ -94,7 +94,7 @@ local function codepoint_to_utf8(n)
     error( string.format("invalid unicode codepoint '%x'", n) )
 end
 
----@class json.Decoder
+---@class json.Decoder : json.IDecoder
 ---@field nil_placeholder any
 ---@field char_func_name_map table<string, string>
 local decoder = {}

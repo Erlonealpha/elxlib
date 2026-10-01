@@ -9,20 +9,26 @@ M.null = setmetatable({}, {
     __jsontype = "null"
 })
 
+---@interface json.IEncoder
+---@field encode fun(s:self, t:table, null:any, ...:any):string
+
+---@interface json.IDecoder
+---@field decode fun(s:self, str:string)
+
 ---@param t any
 ---@param indent? int?
 ---@param nil_placeholder? any
----@param encoder? json.Encoder|any
+---@param encoder? json.IEncoder
 ---@return string
-function M.dumps(t, indent, nil_placeholder, encoder)
+function M.dumps(t, indent, nil_placeholder, encoder, fallback)
     nil_placeholder = nil_placeholder or M.null
     encoder = encoder or Encoder.new(indent, nil_placeholder)
-    return encoder:encode(t, indent, nil_placeholder)
+    return encoder:encode(t, indent, nil_placeholder, fallback)
 end
 
 ---@param str string
----@param nil_placeholder any|nil
----@param decoder json.Decoder|any
+---@param nil_placeholder? any
+---@param decoder? json.IDecoder
 function M.loads(str, nil_placeholder, decoder)
     decoder = decoder or Decoder.new(nil_placeholder)
     return decoder:decode(str)

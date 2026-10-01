@@ -1,6 +1,7 @@
----@class json.Encoder
+---@class json.Encoder : json.IEncoder
 ---@field indent int?
 ---@field nil_placeholder any
+---@field fallback? fun(val:any):string
 ---@field type_func_map table<string, function|string>
 local encoder = {}
 encoder.__index = encoder
@@ -60,6 +61,10 @@ function encoder:encode_table(val, stack, level)
     if stack[val] then error("circular reference") end
 
     stack[val] = true
+
+    if self.nil_placeholder ~= nil and val == self.nil_placeholder then
+        return tostring(self.nil_placeholder)
+    end
 
     if rawget(val, 1) ~= nil or next(val) == nil then
         -- Treat as array -- check keys are valid and it is not sparse
@@ -138,13 +143,17 @@ function encoder:_encode(val, stack, level)
     local f = self.type_func_map[t]
     if type(f) == "function" then
         return f(val, stack)
-    else
+    elseif self[f] then
         return self[f](self, val, stack, level)
+    end
+    if self.fallback then
+        return self.fallback(val)
     end
     error("unexpected type '" .. t .. "'")
 end
 
-function encoder:encode(t, indent, nil_placeholder)
+function encoder:encode(t, indent, nil_placeholder, fallback)
+    self.fallback = fallback
     if indent ~= nil then
         self.indent = indent
     end
