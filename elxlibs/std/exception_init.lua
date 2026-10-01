@@ -17,6 +17,11 @@ local function new_exception(name, parent, str)
 end
 
 ---@class std.BaseException : std.object
+---@field __name string
+---@field __str string
+---@field __traceback string?
+---@field __cause any?
+---@field __is_std_exception true
 ---@overload fun(msg: string): self
 local BaseException = class.new("std.BaseException", {}, {__name = "BaseException", __str = "base exception"})
 
@@ -28,7 +33,17 @@ end
 function BaseException:__tostring()
     local msg = self._message or self.__str
     local traceback = self.__traceback or ''
-    return string.format('%s: %s%s', self.__name, tostring(msg), traceback)
+    local cause = ''
+    if self.__cause ~= nil then
+        local sep = '\nThe above exception was the direct cause of the following exception:\n'
+        if type(self.__cause) ~= 'string' then
+            cause = tostring(self.__cause) .. sep
+        else
+            cause = self.__cause .. sep
+        end
+    end
+
+    return string.format('%s%s: %s%s', cause, self.__name, tostring(msg), traceback)
 end
 
 ---@class std.Exception : std.BaseException

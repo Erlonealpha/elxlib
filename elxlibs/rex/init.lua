@@ -1,3 +1,4 @@
+local std = require "elxlibs.std"
 ---@diagnostic disable-next-line: unresolved-require
 ---@type LrexlibPcre2
 local _rex = require "rex_pcre2"
@@ -8,7 +9,7 @@ local type = type
 local table = table
 local debug = debug
 local error = error
-local xpcall = xpcall
+local xpcall = std.xpcall
 
 ---@generic T
 ---@param fn T
@@ -22,7 +23,7 @@ local function pcall_wrap(fn, rv_wrap)
         local args = {...}
         local rv = table.pack(xpcall(function()
             return fn(arg0, arg1, table.unpack(args))
-        end, debug.traceback))
+        end, nil, 2))
         if not rv[1] then
             error(rv[2], 0)
         end
@@ -38,7 +39,7 @@ local function pcall_wrap_self(fn, self)
         local args = {...}
         local rv = table.pack(xpcall(function()
             return fn(self, table.unpack(args))
-        end, debug.traceback))
+        end, nil, 2))
         if not rv[1] then
             error(rv[2], 0)
         end

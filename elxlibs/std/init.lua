@@ -100,6 +100,9 @@ M.raise = exception.raise
 M.try = exception.try
 M.catch = exception.catch
 M.finally = exception.finally
+M.xpcall = exception.xpcall
+M.pcall = exception.pcall
+M.traceback = exception.traceback
 
 M.BaseException = exception.BaseException
 M.Exception = exception.Exception

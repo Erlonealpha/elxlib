@@ -12,67 +12,120 @@ local xpcall = xpcall
 local string = string
 local tostring = tostring
 
--- following will setup later by exception_exception_init.lua
--- M.new_exception = nil
--- M.BaseException = nil
--- M.Exception = nil
--- M.RuntimeError = nil
--- M.TypeError = nil
--- M.ValueError = nil
--- M.IndexError = nil
--- M.KeyError = nil
--- M.AttributeError = nil
--- M.NotImplementedError = nil
--- M.AssertionError = nil
--- M.EOFError = nil
--- M.IOError = nil
--- M.OSError = nil
--- M.ImportError = nil
--- M.MemoryError = nil
--- M.TimeoutError = nil
-
+---@generic E = any, L = int
 ---@param err any
----@param level int?
----@not_return
----@return void
-function M.raise(err, level)
-    if level ~= nil then
-        if level ~= 0 then
-            level = level + 1
-        end
-    else
-        level = 2
-    end
+---@param level L?
+---@param raise boolean?
+---@return E, L, boolean
+local function _traceback(err, level, raise)
     local typ = type(err)
-    if typ == "table" and err.__is_std_exception then
-        if err.__traceback ~= nil then
-            err.__traceback = debug.traceback(err.__traceback, level)
-        else
+    if typ == 'table' and err.__is_std_exception then
+        if err.__traceback == nil and raise then
             err.__traceback = debug.traceback('', level)
         end
-        if level == 0 then
-            error(tostring(err), level)
-        else
-            error(err, level)
-        end
-    elseif typ ~= "string" then
+        return err, 0, true
+    elseif typ ~= 'string' then
         err = tostring(err)
     end
-    error(err, level)
+    return err, level, false
 end
 
-function M.traceback(err)
-    if err and err:find("stack traceback:") then
-        return err
+--- `level` has the same meaning as in `error()`: it counts the frames above the
+--- caller of `raise` that should be blamed for the error (0 = do not add any
+--- position information).
+--- NOTE: `_traceback` runs one frame deeper than `raise`, so the level that is
+--- used to capture `__traceback` needs an extra +1 (keep the two apart!).
+---@param err any
+---@param level int?
+---@param from any? 异常链的起因（异常对象或字符串描述）
+---@not_return
+---@return void
+function M.raise(err, level, from)
+    local err_level
+    if level == nil then
+        err_level = 2
+    elseif level == 0 then
+        err_level = 0
+    else
+        err_level = level + 1
     end
+    local tb_level = (err_level == 0) and 0 or (err_level + 1)
+    local _, is_exc
+    err, _, is_exc = _traceback(err, tb_level, true)
+    if from then
+        if is_exc then
+            err.__cause = from
+        else
+            local from_level
+            from, from_level, is_exc = _traceback(from, nil, false)
+            if is_exc then
+                from = tostring(from)
+            end
+            err = from .. '\nThe above exception was the direct cause of the following exception:\n' .. err
+        end
+    end
+    error(err, err_level)
+end
+
+---@generic T
+---@param fn fun():T...
+---@param err_handler? fun(err:any, level:int?):any
+---@param level int?
+---@return_overload true, T...
+---@return_overload false, any
+function M.xpcall(fn, err_handler, level)
+    if level ~= nil then
+        ---@diagnostic disable-next-line: return-type-mismatch
+        return xpcall(fn, function(err)
+            return (err_handler or M.traceback)(err, level + 1)
+        end)
+    end
+    -- EmmyluaBUG  `(true|false)` => `boolean` EmmyLua(return-type-mismatch)
+    ---@diagnostic disable-next-line: return-type-mismatch
+    return xpcall(fn, err_handler or M.traceback)
+end
+
+M.pcall = pcall
+
+--- @overload fun(): string
+--- @overload fun(err?: string, level?: integer): string
+--- @param thread?  thread
+--- @param err? any
+--- @param level? integer
+--- @return string
+function M.traceback(thread, err, level)
+    if type(thread) ~= 'thread' then
+        -- called as traceback(err[, level]); keep `thread` nil but do NOT
+        -- overwrite `err` (it still holds the message/exception here)
+        level = err
+        err = thread
+        thread = nil
+    end
+
+    level = level or 2
+
+    if err ~= nil then
+        local _, is_exc
+        _, _, is_exc = _traceback(err, level + 1, true)
+        if is_exc then
+            return tostring(err)
+        elseif err:find("stack traceback:") then
+            return err
+        end
+    end
+
     local result = ""
     if err then
         result = result.. err.. "\n"
     end
     result = result.. "stack traceback:\n"
-    local level = 2
     while true do
-        local info = debug.getinfo(level, "Sln")
+        local info
+        if thread ~= nil then
+            info = debug.getinfo(thread, level, "Sln")
+        else
+            info = debug.getinfo(level, "Sln")
+        end
 
         if not info or (info.name and (info.name == "xpcall" or info.name == "pcall")) then
             break
@@ -93,11 +146,16 @@ function M.traceback(err)
     return result
 end
 
-function M.trycall(fn, traceback, ...)
-    return xpcall(fn, function (errors)
-        traceback = traceback or debug.traceback
-        return traceback(errors)
-    end, ...)
+function M.traceback1(err)
+    return M.traceback(err, 2)
+end
+
+function M.traceback2(err)
+    return M.traceback(err, 3)
+end
+
+function M.traceback3(err)
+    return M.traceback(err, 4)
 end
 
 
@@ -138,12 +196,12 @@ function M.try(block)
     end
     local catch = fnmap.catch
     local finally = fnmap.finally
-    local results = table.pack(xpcall(try, debug.traceback))
+    local results = table.pack(M.xpcall(try))
     local ok = results[1]
     if not ok and catch then
-        xpcall(function()
+        M.xpcall(function()
             return catch(results[2])
-        end, debug.traceback)
+        end, nil, 2)
     end
     if finally then
         finally(ok, table.unpack(results, 2, results.n))
