@@ -39,7 +39,7 @@ function mptl.subprocess(opts)
 end
 
 ---@param opts subprocess_opts?
----@param cb fun(sucess: boolean, result: subprocess_result?, error_string: string?)
+---@param cb fun(sucess: boolean, result: subprocess_result, error_string: string?)
 function mptl.subprocess_async(opts, cb)
     if opts == nil then
         opts = {}

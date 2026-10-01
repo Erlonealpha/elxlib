@@ -8,7 +8,6 @@
 
 -- COMMIT https://github.com/luafun/luafun/commit/e68387c2df0e880eda2fa2a41cc893210665733e
 
----@class FunLib
 local exports = {}
 local methods = {}
 
@@ -75,15 +74,7 @@ local function deepcopy(orig) -- used by cycle()
     return copy
 end
 
----@alias _RawGenerator<P, R> fun(...: P...):R...
----@alias _Fun_IterGen<P, S> fun(param: P, state: S)
----@alias _Generator<P, S, R> _RawGenerator<P, R>|FunIterator<P, S>|string|R[]
 
----@class FunIterator<P, S>
----@field param P
----@field state S
----@field gen _Fun_IterGen<P, S>
----@overload fun(self: self, param: P, state: S)
 
 local iterator_mt = {
     -- usually called by for-in loop
@@ -97,13 +88,6 @@ local iterator_mt = {
     __index = methods;
 }
 
----@generic P, S
----@param gen _Fun_IterGen<P, S>
----@param param? P
----@param state? S
----@return FunIterator<P, S>
----@return P
----@return S
 local wrap = function(gen, param, state)
     return setmetatable({
         gen = gen,
@@ -113,11 +97,6 @@ local wrap = function(gen, param, state)
 end
 exports.wrap = wrap
 
----@generic P, S
----@param self FunIterator<P, S>
----@return _Fun_IterGen<P, S>
----@return P
----@return S
 local unwrap = function(self)
     return self.gen, self.param, self.state
 end
@@ -127,7 +106,6 @@ methods.unwrap = unwrap
 -- Basic Functions
 --------------------------------------------------------------------------------
 
----@return nil
 local nil_gen = function(_param, _state)
     return nil
 end
@@ -150,20 +128,12 @@ local map_gen = function(tab, key)
     return key, key, value
 end
 
----@generic P, S, R
----@param obj _RawGenerator<P, R>|_Fun_IterGen<P, S>|FunIterator<P, S>|string
----@param param? P
----@param state? S
----@return _RawGenerator<P, R>|_Fun_IterGen<P, S>
----@return P...|P?
----@return S?
 local rawiter = function(obj, param, state)
     assert(obj ~= nil, "invalid iterator")
     if type(obj) == "table" then
         local mt = getmetatable(obj);
         if mt ~= nil then
             if mt == iterator_mt then
-                ---@cast obj FunIterator<P, S>
                 return obj.gen, obj.param, obj.state
             elseif mt.__ipairs ~= nil then
                 return mt.__ipairs(obj)
@@ -190,76 +160,47 @@ local rawiter = function(obj, param, state)
           obj, type(obj)))
 end
 
----@generic P, S
----@param obj _Fun_IterGen<P, S>
----@param param P
----@param state S
----@return FunIterator<P,S>
----@return P
----@return S
 local iter = function(obj, param, state)
-    ---@diagnostic disable-next-line: param-type-mismatch
     return wrap(rawiter(obj, param, state))
 end
 exports.iter = iter
 
----@generic P, S, R
----@param fun fun(gen: _Fun_IterGen<P, S>, param: P, state: S):R...
----@return fun(self: FunIterator<P, S>):R...
 local method0 = function(fun)
     return function(self)
         return fun(self.gen, self.param, self.state)
     end
 end
 
----@generic P, S, R, T1
----@param fun fun(arg1: T1, gen: _Fun_IterGen<P, S>, param: P, state: S):R...
----@return fun(self: FunIterator<P, S>, arg1: T1):R...
 local method1 = function(fun)
     return function(self, arg1)
         return fun(arg1, self.gen, self.param, self.state)
     end
 end
 
----@generic P, S, R, T1, T2
----@param fun fun(arg1: T1, arg2: T2, gen: _Fun_IterGen<P, S>, param: P, state: S):R...
----@return fun(self: FunIterator<P, S>, arg1: T1, arg2: T2):R...
 local method2 = function(fun)
     return function(self, arg1, arg2)
         return fun(arg1, arg2, self.gen, self.param, self.state)
     end
 end
 
----@generic G, P, S, R
----@param fun fun(iter: G):R...
----@return fun(gen: G, param?: P, state?: S):R...
 local export0 = function(fun)
     return function(gen, param, state)
         return fun(rawiter(gen, param, state))
     end
 end
 
----@generic G, P, S, R, T
----@param fun fun(arg1: T, iter: G):R...
----@return fun(arg1: T, gen: G, param?: P, state?: S):R...
 local export1 = function(fun)
     return function(arg1, gen, param, state)
         return fun(arg1, rawiter(gen, param, state))
     end
 end
 
----@generic G, P, S, R, T1, T2
----@param fun fun(arg1: T1, arg2: T2, iter: G):R...
----@return fun(arg1: T1, arg2: T2, gen: G, param?: P, state?: S):R...
 local export2 = function(fun)
     return function(arg1, arg2, gen, param, state)
         return fun(arg1, arg2, rawiter(gen, param, state))
     end
 end
 
----@generic P, S, R
----@param fun fun()
----@param gen _Generator<P, S, R>
 local each = function(fun, gen, param, state)
     repeat
         state = call_if_not_empty(fun, gen(param, state))
@@ -880,9 +821,6 @@ exports.max_by = export1(max_by)
 methods.maximum_by = methods.max_by
 exports.maximum_by = exports.max_by
 
----@generic P, S, T, R
----@param gen_x _RawGenerator<P, R>|FunIterator<P, S>
----@return R[]
 local totable = function(gen_x, param_x, state_x)
     local tab, key, val = {}
     while true do
@@ -920,9 +858,6 @@ local map_gen = function(param, state)
     return call_if_not_empty(fun, gen_x(param_x, state))
 end
 
----@generic T, P, R
----@param fun fun(t: T):R...
----@param gen _RawGenerator<P, T>|T[]
 local map = function(fun, gen, param, state)
     return wrap(map_gen, {gen, param, fun}, state)
 end
@@ -1150,10 +1085,8 @@ methods.op = operator
 -- elxlib extensions
 --------------------------------------------------------------------------------
 
----@generic T
----@param iterable _RawGenerator<any, T>|T[]|FunIterator<any, any>
----@param sep string?
----@return string
+---@param iterable any
+---@param sep string
 function exports.str_concat(iterable, sep)
     if sep == nil then
         sep = ''

@@ -36,8 +36,8 @@ local LrexlibPcre2Pattern = {}
 ---@param subj string 目标字符串
 ---@param init? integer 起始偏移位置（可为负数），默认为 1[reference:10]
 ---@param ef? integer 执行标志（按位或），默认为 0[reference:11]
----@return any ... 成功时返回所有捕获的子串（按顺序），false 表示未参与匹配的子模式；若模式无捕获则返回整个匹配字符串[reference:12]
----@return nil 失败时返回 nil[reference:13]
+---@return_overload ... any... 成功时返回所有捕获的子串（按顺序），false 表示未参与匹配的子模式；若模式无捕获则返回整个匹配字符串[reference:12]
+---@return_overload nil 失败时返回 nil[reference:13]
 function LrexlibPcre2Pattern:match(subj, init, ef) end
 
 ---在字符串中搜索第一个匹配项，返回偏移量和捕获（方法版本）[reference:14]。
@@ -47,7 +47,7 @@ function LrexlibPcre2Pattern:match(subj, init, ef) end
 ---@return integer? start 成功时返回匹配起始位置
 ---@return integer? end 成功时返回匹配结束位置
 ---@return table? captures 成功时返回捕获子串表（按顺序），false 表示未参与匹配的子模式[reference:17]
----@return nil 失败时返回 nil[reference:18]
+---@return_overload nil 失败时返回 nil[reference:18]
 function LrexlibPcre2Pattern:find(subj, init, ef) end
 
 ---搜索第一个匹配项，返回偏移量和捕获表（方法版本，类似 tfind）[reference:19]。
@@ -57,7 +57,7 @@ function LrexlibPcre2Pattern:find(subj, init, ef) end
 ---@return integer? start 成功时返回匹配起始位置
 ---@return integer? end 成功时返回匹配结束位置
 ---@return table? captures 成功时返回捕获子串表（按顺序），false 表示未参与匹配的子模式；若使用命名子模式，表中还包含以名称（字符串）为键的子串匹配[reference:22]
----@return nil 失败时返回 nil[reference:23]
+---@return_overload nil 失败时返回 nil[reference:23]
 function LrexlibPcre2Pattern:tfind(subj, init, ef) end
 
 ---搜索第一个匹配项，返回偏移量和捕获偏移量表（方法版本）[reference:24]。
@@ -67,7 +67,7 @@ function LrexlibPcre2Pattern:tfind(subj, init, ef) end
 ---@return integer? start 成功时返回匹配起始位置
 ---@return integer? end 成功时返回匹配结束位置
 ---@return table? offsets 成功时返回捕获偏移量表（按顺序），false 表示未参与匹配的子模式；若使用命名子模式，表中还包含以名称（字符串）为键的偏移量[reference:27]
----@return nil 失败时返回 nil[reference:28]
+---@return_overload nil 失败时返回 nil[reference:28]
 function LrexlibPcre2Pattern:exec(subj, init, ef) end
 
 ---使用 DFA 匹配算法在字符串中搜索匹配（PCRE2 专用）[reference:29]。
@@ -79,13 +79,13 @@ function LrexlibPcre2Pattern:exec(subj, init, ef) end
 ---@return integer? start 成功时返回匹配起始位置
 ---@return table? ends 成功时返回包含所有匹配结束位置的表（较长匹配优先）[reference:35]
 ---@return integer? ret 成功时返回底层 pcre2_dfa_exec 调用的返回值[reference:36]
----@return nil 失败（无匹配）时返回 nil[reference:37]
+---@return_overload nil 失败（无匹配）时返回 nil[reference:37]
 function LrexlibPcre2Pattern:dfa_exec(subj, init, ef, ovecsize, wscount) end
 
 ---编译 JIT（即时编译）以加速匹配（PCRE2 专用）[reference:38]。
 ---@param options? integer 选项（按位或），默认为 PCRE2_JIT_COMPLETE[reference:39]
----@return boolean success 成功时返回 true[reference:40]
----@return false, string error 失败时返回 false 和错误信息字符串[reference:41]
+---@return_overload true success 成功时返回 true[reference:40]
+---@return_overload false, string error 失败时返回 false 和错误信息字符串[reference:41]
 function LrexlibPcre2Pattern:jit_compile(options) end
 
 ---获取编译后模式的信息（PCRE2 专用）[reference:42]。
@@ -112,8 +112,8 @@ function LrexlibPcre2.new(patt, cf, lo) end
 ---@param init? integer 起始偏移位置（可为负数），默认为 1[reference:56]
 ---@param cf? integer|string 编译标志（按位或），默认为 0[reference:57]
 ---@param ef? integer 执行标志（按位或），默认为 0[reference:58]
----@return any ... 成功时返回所有捕获的子串（按顺序），false 表示未参与匹配的子模式；若模式无捕获则返回整个匹配字符串[reference:59]
----@return nil 失败时返回 nil[reference:60]
+---@return_overload ... any... 成功时返回所有捕获的子串（按顺序），false 表示未参与匹配的子模式；若模式无捕获则返回整个匹配字符串[reference:59]
+---@return_overload nil 失败时返回 nil[reference:60]
 function LrexlibPcre2.match(subj, patt, init, cf, ef) end
 
 ---搜索第一个匹配项，返回偏移量和捕获（函数版本）[reference:61]。
@@ -125,7 +125,7 @@ function LrexlibPcre2.match(subj, patt, init, cf, ef) end
 ---@return integer? start 成功时返回匹配起始位置
 ---@return integer? end 成功时返回匹配结束位置
 ---@return table? captures 成功时返回捕获子串表（按顺序），false 表示未参与匹配的子模式[reference:67]
----@return nil 失败时返回 nil[reference:68]
+---@return_overload nil 失败时返回 nil[reference:68]
 function LrexlibPcre2.find(subj, patt, init, cf, ef) end
 
 ---返回一个迭代器，用于全局匹配[reference:69]。
