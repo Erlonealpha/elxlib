@@ -14,7 +14,7 @@ mp.utils = require 'mp.utils'
 ---@field fs elxfs
 ---@field hashlib hashlib
 ---@field json json
------@field cjson cjson
+---@field cjson cjson
 ---@field std elxstd
 ---@field mptl mptl
 ---@field rex LrexlibPcre2
