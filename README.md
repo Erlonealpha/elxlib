@@ -177,7 +177,7 @@ elxlib/
   SHA1, SHA2, SHA3, BLAKE2 and BLAKE3 functions written in pure Lua and optimized for speed.
 - [json.lua](https://github.com/rxi/json.lua) `/json/{decode,encode}.lua`  
   A lightweight JSON library for Lua.
-- [Lua CJSON](https://github.com/openresty/lua-cjson) `/cjson`  
+- [Lua CJSON](https://github.com/mpx/lua-cjson) `/cjson`  
   Fast JSON encoding/decoding for Lua (used through `bin/cjson.dll`).
 - [luaexpat](https://github.com/lunarmodules/luaexpat) `/lxp`  
   LuaExpat is a SAX XML parser based on the Expat library.
