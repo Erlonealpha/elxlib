@@ -900,25 +900,35 @@ local function amp_event_loop()
                     events_tasks[t_id] = nil
                 end
                 err_tasks = {}
-            elseif #err_tasks > 0 and err_report_allowed() then
-                if #err_tasks == 1 then
-                    local t = events_tasks[err_tasks[1]]
-                    local err = t and t._exception
-                    events_tasks[err_tasks[1]] = nil
-                    err_tasks = {}
-                    raise(err or 'unknown error in event task', 0)
-                else
-                    local errs = {}
-                    for _, t_id in ipairs(err_tasks) do
-                        local t = events_tasks[t_id]
-                        if t ~= nil and t._exception ~= nil then
-                            table.insert(errs, tostring(t._exception))
+            elseif #err_tasks > 0 then
+                if err_report_allowed() then
+                    if #err_tasks == 1 then
+                        local t = events_tasks[err_tasks[1]]
+                        local err = t and t._exception
+                        events_tasks[err_tasks[1]] = nil
+                        err_tasks = {}
+                        raise(err or 'unknown error in event task', 0)
+                    else
+                        local errs = {}
+                        for _, t_id in ipairs(err_tasks) do
+                            local t = events_tasks[t_id]
+                            if t ~= nil and t._exception ~= nil then
+                                table.insert(errs, tostring(t._exception))
+                            end
+                            events_tasks[t_id] = nil
                         end
-                        events_tasks[t_id] = nil
+                        err_tasks = {}
+                        raise(table.concat(errs, 
+                            '\nDuring handling of the above exception, another exception occurred:\n'), 0)
                     end
-                    err_tasks = {}
-                    raise(table.concat(errs, 
-                        '\nDuring handling of the above exception, another exception occurred:\n'), 0)
+                else
+                    -- A registered finally callback has not run yet, which keeps
+                    -- err_report_allowed() false. Request shutdown instead of
+                    -- holding the failure back (and keeping the loop running)
+                    -- forever: the shutdown branch below starts the finally
+                    -- callbacks, after which the errors are drained above and
+                    -- reported once the loop exits.
+                    _stoping = true
                 end
             end
 

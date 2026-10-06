@@ -222,6 +222,30 @@ case {
 }
 
 case {
+    -- mpv never sends "shutdown" here: the error itself has to end the loop.
+    -- With a registered finally callback, err_report_allowed() used to stay
+    -- false forever, so the error was silently held back and the loop kept
+    -- running (the stub limit is the safety net for that regression).
+    name = "handler error ends the loop even with a finally registered",
+    opts = { script = { [8] = "file-loaded" }, limit = 120 },
+    setup = function(asyncio, amp, _, rec)
+        amp.register_event("file-loaded", function()
+            error(std.RuntimeError("unhandled-boom"))
+        end)
+        amp.add_finally(finally_coro(asyncio, function()
+            rec.runs[#rec.runs + 1] = "cleanup"
+        end))
+    end,
+    check = function(rec)
+        F.eq(rec.ok, false, "the loop stopped by itself")
+        F.is_error(rec.err, "unhandled-boom", "the error is reported")
+        F.eq(table.concat(rec.runs, ","), "cleanup", "the finally callback ran")
+        F.ok(rec.wait_calls < 40,
+            "the loop did not wait for a shutdown event (" .. rec.wait_calls .. " wait_event calls)")
+    end,
+}
+
+case {
     -- self-test of the harness: a real deadlock must fail the suite instead of
     -- hanging it forever (the stub's call limit / watchdog turn it into an
     -- error)
