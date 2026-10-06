@@ -19,7 +19,7 @@
 - 目前硬性要求：Windows / `win32` 和 LuaJIT。
 - 主要使用场景是 MPV / mpv.net 脚本环境，入口依赖 `mp` 与 `mp.utils`。
 - 如果使用 `mpv.net`，需要确保 `libmpv` 动态链接 Lua；静态链接 Lua 的构建在使用 C 扩展时可能崩溃。可从 [Releases](https://github.com/Erlonealpha/elxlib/releases/tag/mpvdll) 获取动态链接版本（仅windows）。
-- `fs` / `aiofs` 依赖 `bin/fstool.exe`，`rex` / `lxp` / `cjson` 等模块依赖 `bin` 下随库提供的 DLL（`bin/` 不在仓库中，见 Releases）。
+- `fs` / `aiofs` 依赖 `bin/fstool.exe`，`rex` / `lxp` / `cjson` 等模块依赖 `bin` 下随库提供的 DLL。
 
 ## 安装
 
@@ -164,7 +164,7 @@ luajit test/asyncio/run.lua amp      # 只跑文件名匹配的用例
 elxlib/
 ├── init.lua              # 入口模块，注册加载路径和模块别名
 ├── main.lua              # mpv 脚本占位入口
-├── bin/                  # C 扩展 DLL 与辅助可执行文件（不在仓库中）
+├── bin/                  # C 扩展 DLL 与辅助可执行文件
 ├── elxlibs/              # 各功能模块
 └── test/                 # 独立测试套件（无需 mpv，纯 LuaJIT 运行）
 ```
