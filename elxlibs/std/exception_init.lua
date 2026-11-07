@@ -1,10 +1,12 @@
+---@namespace std
+
 local exception = require "elxlibs.std.exception"
 local class = require "elxlibs.std.class"
 
----@class std._exception
+---@class _exception
 local _M = {}
 
----@generic P: std.BaseException
+---@generic P: BaseException
 ---@generic T: P
 ---@[constructor("__init")]
 ---@param name `T`
@@ -13,17 +15,18 @@ local _M = {}
 ---@return T
 local function new_exception(name, parent, str)
     ---@diagnostic disable-next-line: param-type-mismatch
-    return class.new(name, {parent}, {__name = name, __str = str, __is_std_exception = true})
+    return class.new(name, parent, {__name = name, __str = str, __is_std_exception = true})
 end
 
----@class std.BaseException : std.object
+---@diagnostic disable-next-line: generic-constraint-mismatch EmmyluaBUG
+---@class BaseException : object
 ---@field __name string
 ---@field __str string
 ---@field __traceback string?
 ---@field __cause any?
 ---@field __is_std_exception true
 ---@overload fun(msg: string): self
-local BaseException = class.new("std.BaseException", {}, {__name = "BaseException", __str = "base exception"})
+local BaseException = class.new("BaseException", nil, { __str = "base exception" })
 
 ---@param msg string?
 function BaseException:__init(msg)
@@ -46,66 +49,66 @@ function BaseException:__tostring()
     return string.format('%s%s: %s%s', cause, self.__name, tostring(msg), traceback)
 end
 
----@class std.Exception : std.BaseException
+---@class Exception : BaseException
 ---@overload fun(msg:string?): self
 local Exception = new_exception(
-    "std.Exception",            BaseException,  "exception")
----@class std.RuntimeError : std.Exception
+    "Exception",            BaseException,  "exception")
+---@class RuntimeError : Exception
 ---@overload fun(msg:string?): self
 local RuntimeError = new_exception(
-    "std.RuntimeError",             Exception,  "runtime error")
----@class std.TypeError : std.Exception
+    "RuntimeError",             Exception,  "runtime error")
+---@class TypeError : Exception
 ---@overload fun(msg:string?): self
 local TypeError = new_exception(
-    "std.TypeError",                Exception,  "type error")
----@class std.ValueError : std.Exception
+    "TypeError",                Exception,  "type error")
+---@class ValueError : Exception
 ---@overload fun(msg:string?): self
 local ValueError = new_exception(
-    "std.ValueError",               Exception,  "value error")
----@class std.IndexError : std.Exception
+    "ValueError",               Exception,  "value error")
+---@class IndexError : Exception
 ---@overload fun(msg:string?): self
 local IndexError = new_exception(
-    "std.IndexError",               Exception,  "index error")
----@class std.KeyError : std.Exception
+    "IndexError",               Exception,  "index error")
+---@class KeyError : Exception
 ---@overload fun(msg:string?): self
 local KeyError = new_exception(
-    "std.KeyError",                 Exception,  "key error")
----@class std.AttributeError : std.Exception
+    "KeyError",                 Exception,  "key error")
+---@class AttributeError : Exception
 ---@overload fun(msg:string?): self
 local AttributeError = new_exception(
-    "std.AttributeError",           Exception,  "attribute error")
----@class std.NotImplementedError : std.Exception
+    "AttributeError",           Exception,  "attribute error")
+---@class NotImplementedError : Exception
 ---@overload fun(msg:string?): self
 local NotImplementedError = new_exception(
-    "std.NotImplementedError",      Exception,  "not implemented error")
----@class std.AssertionError : std.Exception
+    "NotImplementedError",      Exception,  "not implemented error")
+---@class AssertionError : Exception
 ---@overload fun(msg:string?): self
 local AssertionError = new_exception(
-    "std.AssertionError",           Exception,  "assertion error")
----@class std.EOFError : std.Exception
+    "AssertionError",           Exception,  "assertion error")
+---@class EOFError : Exception
 ---@overload fun(msg:string?): self
 local EOFError = new_exception(
-    "std.EOFError",                 Exception,  "end of file error")
----@class std.IOError : std.Exception
+    "EOFError",                 Exception,  "end of file error")
+---@class IOError : Exception
 ---@overload fun(msg:string?): self
 local IOError = new_exception(
-    "std.IOError",                  Exception,  "input/output error")
----@class std.OSError : std.Exception
+    "IOError",                  Exception,  "input/output error")
+---@class OSError : Exception
 ---@overload fun(msg:string?): self
 local OSError = new_exception(
-    "std.OSError",                  Exception,  "operating system error")
----@class std.ImportError : std.Exception
+    "OSError",                  Exception,  "operating system error")
+---@class ImportError : Exception
 ---@overload fun(msg:string?): self
 local ImportError = new_exception(
-    "std.ImportError",              Exception,  "import error")
----@class std.MemoryError : std.Exception
+    "ImportError",              Exception,  "import error")
+---@class MemoryError : Exception
 ---@overload fun(msg:string?): self
 local MemoryError = new_exception(
-    "std.MemoryError",              Exception,  "memory error")
----@class std.TimeoutError : std.OSError
+    "MemoryError",              Exception,  "memory error")
+---@class TimeoutError : OSError
 ---@overload fun(msg:string?): self
 local TimeoutError = new_exception(
-    "std.TimeoutError",             OSError,    "timeout error")
+    "TimeoutError",             OSError,    "timeout error")
 
 
 _M.new_exception = new_exception

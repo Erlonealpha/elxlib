@@ -1,83 +1,81 @@
 -- std.class.lua
--- This file is part of the standard library of the libsElx library.
+-- This file is part of the standard library of the elxlib.
 
-local exception = require("elxlibs.std.exception")
+---@namespace std
+
+local exception = require 'elxlibs.std.exception'
 
 local type = type
-local table = table
 local pairs = pairs
 local rawget = rawget
 local ipairs = ipairs
 local string = string
 local tostring = tostring
-local rawequal = rawequal
 local setmetatable  = setmetatable
 local raise = exception.raise
 
 local _STD_CLASS_DEBUG = _G._STD_CLASS_DEBUG
 
 
----@class std.class
----@generic T, B: std.object
----@overload fun(name: `T`, bases?: B[], dict?: table<string, any>):T
+---@class classlib
+---@generic T, B: object
+---@overload fun(name: `T`, parent?: B, dict?: table<string, any>):T
 local M = {}
 
 ---@alias __system_class_fields {
----     __system: {
----         __type: "class",
----         __name: string,
----         __abstract: boolean,
----         __final: boolean,
----         __bases: std.Class[],
----         __mro: std.Class[],
----         __addr: string,
----     }
+---     __type: 'class',
+---     __name: string,
+---     __abstract: boolean,
+---     __final: boolean,
+---     __parent: class?,
+---     __mro: class[],
+---     __addr: string,
+---     __metatable: table<string, function>?,
 --- }
 ---@alias __system_object_fields {
----     __system: {
----         __type: "object",
----         __class: std.Class,
----         __addr: string,
----     }
+---     __type: 'object',
+---     __name: string,
+---     __class: class,
+---     __addr: string,
 --- }
 
 -- _register is an ownership table for reflection metadata.
 -- As long as class/object (key) is alive, its metadata (value) must stay alive.
 -- Therefore: weak keys, strong values.
----@type {class: table<std.object|std.Class,__system_class_fields>, object: table<std.object|std.Class,__system_object_fields>}
+---@type {class: table<object|class,__system_class_fields>, object: table<object|class,__system_object_fields>}
 local _register = {
-    class =  setmetatable({}, {__mode = "k"}),
-    object = setmetatable({}, {__mode = "k"}),
+    class =  setmetatable({}, {__mode = 'k'}),
+    object = setmetatable({}, {__mode = 'k'}),
 }
+local _register_class = _register.class
+local _register_object = _register.object
 
-local function _register_cls(cls, bases, mro, opts)
-    _register.class[cls] = {
-        __system = {
-            __type = "class",
-            __name = cls.__name,
-            __abstract = opts and opts.abstract or false,
-            __final = opts and opts.final or false,
-            __bases = bases,
-            __mro = mro,
-            __addr = tostring(cls), -- Note: here cls's metatable is not set yet, 
-                                    --       so here is cls's real address string.
-        }
+local function _register_cls(cls, mro, parent, opts)
+    _register_class[cls] = {
+        __type = 'class',
+        __name = cls.__name,
+        __abstract = opts and opts.abstract or false,
+        __final = opts and opts.final or false,
+        __parent = parent,
+        __mro = mro,
+        __addr = tostring(cls), -- Note: here cls's metatable is not set yet, 
+                                --       so here is cls's real address string.
     }
 end
 
 local function _register_obj(obj, cls)
-    _register.object[obj] = {
-        __system = {
-            __type = "object", 
-            __class = cls, 
-            __name = cls.__name,
-            __addr = tostring(obj)
-        }
+    _register_object[obj] = {
+        __type = 'object', 
+        __class = cls, 
+        __name = cls.__name,
+        __addr = tostring(obj)
     }
 end
 
+---@param cls class
+---@param key string
 local function _lookup_class_attr(cls, key)
-    local dict = rawget(cls, "__dict")
+    local dict = rawget(cls, '__dict')
     if dict then
         local v = dict[key]
         if v ~= nil then
@@ -85,14 +83,17 @@ local function _lookup_class_attr(cls, key)
         end
     end
 
-    local mro = rawget(cls, "__mro")
+    local mro = rawget(cls, '__mro')
     if mro then
         for i = 2, #mro do
-            local base_dict = rawget(mro[i], "__dict")
-            if base_dict then
-                local v = base_dict[key]
-                if v ~= nil then
-                    return v
+            local b = mro[i]
+            if b ~= nil then
+                local base_dict = rawget(mro[i], '__dict')
+                if base_dict then
+                    local v = base_dict[key]
+                    if v ~= nil then
+                        return v
+                    end
                 end
             end
         end
@@ -100,7 +101,7 @@ local function _lookup_class_attr(cls, key)
 end
 
 local function _lookup_object_attr(obj, key)
-    local dict = rawget(obj, "__dict")
+    local dict = rawget(obj, '__dict')
     if dict then
         local v = dict[key]
         if v ~= nil then
@@ -108,73 +109,64 @@ local function _lookup_object_attr(obj, key)
         end
     end
 
-    local cls = rawget(obj, "__class")
+    local cls = rawget(obj, '__class')
     if cls then
         return _lookup_class_attr(cls, key)
     end
 end
 
-local function _lookup_meta_method(self, name)
-    if _register.object[self] then
-        return _lookup_object_attr(self, name)
-    elseif _register.class[self] then
-        return _lookup_class_attr(self, name)
-    end
-end
+local lua_version_num = tonumber(_VERSION:match('%d+%.%d+')) or 5.1
 
-local function _meta_wrap(name, fn)
-    return function(self,...)
-        local v = _lookup_meta_method(self, name)
-        if v ~= nil then
-            return v(self,...)
-        end
-        if fn then
-            return fn(self,...)
-        end
-        raise(exception.AttributeError(string.format("%s has no meta method '%s'", tostring(self), name)))
-    end
-end
-
-local function __tostring(t)
-    local kind = M.kindof(t)
-    local _system
-    if kind == "class" then
-        _system = _register.class[t].__system
-    else
-        _system = _register.object[t].__system
-    end
-    if _system.__name then
-        return string.format("%s(%s)", kind, _system.__name)
-    else
-        return string.format("%s(%s)", kind, _system.__addr)
-    end
-end
-
-local META_RUNTIME = {
-    __tostring = _meta_wrap("__tostring", __tostring),
-    __add      = _meta_wrap("__add"),
-    __sub      = _meta_wrap("__sub"),
-    __mul      = _meta_wrap("__mul"),
-    __div      = _meta_wrap("__div"),
-    __mod      = _meta_wrap("__mod"),
-    __pow      = _meta_wrap("__pow"),
-    __unm      = _meta_wrap("__unm"),
-    -- Lua 5.3+ ----------------------------
-    __idiv     = _meta_wrap("__idiv"),
-    __band     = _meta_wrap("__band"),
-    __bor      = _meta_wrap("__bor"),
-    __bxor     = _meta_wrap("__bxor"),
-    __bnot     = _meta_wrap("__bnot"),
-    __shl      = _meta_wrap("__shl"),
-    __shr      = _meta_wrap("__shr"),
-    ----------------------------------------
-    __concat   = _meta_wrap("__concat"),
-    __len      = _meta_wrap("__len"),
-        -- function(self)        return rawlen(self) end), -- Lua 5.2+
-    __eq       = _meta_wrap("__eq",  function(self, other) return rawequal(self, other) end),
-    __lt       = _meta_wrap("__lt"),
-    __le       = _meta_wrap("__le"),
+local meta_names_basic = {
+    '__gc', 
+    '__tostring', 
+    '__add', 
+    '__sub', 
+    '__mul', 
+    '__div', 
+    '__mod', 
+    '__pow', 
+    '__unm', 
+    '__concat', 
+    '__lt', 
+    '__le', 
+    '__len', 
+    '__call',
+    '__eq'
 }
+local meta_names_52 = {'__pairs'}
+local meta_names_53 = {
+    '__idiv', 
+    '__band', 
+    '__bor', 
+    '__bxor', 
+    '__bnot', 
+    '__shl', 
+    '__shr'
+}
+local meta_names_54 = {'__close'}
+
+local meta_names = {}
+do
+    for _, v in ipairs(meta_names_basic) do
+        meta_names[#meta_names+1] = v
+    end
+    if lua_version_num > 5.19 then
+        for _, v in ipairs(meta_names_52) do
+            meta_names[#meta_names+1] = v
+        end
+    end
+    if lua_version_num > 5.29 then
+        for _, v in ipairs(meta_names_53) do
+            meta_names[#meta_names+1] = v
+        end
+    end
+    if lua_version_num > 5.39 then
+        for _, v in ipairs(meta_names_54) do
+            meta_names[#meta_names+1] = v
+        end
+    end
+end
 
 ------------------------------------------------------------------
 -- Metatable defines the behavior of the class and its instances.
@@ -183,7 +175,7 @@ local META_RUNTIME = {
 local class_mt = {}
 
 if not _STD_CLASS_DEBUG then
-    class_mt.__metatable = "protected"
+    class_mt.__metatable = 'protected'
 end
 
 function class_mt.__index(cls, key)
@@ -191,213 +183,158 @@ function class_mt.__index(cls, key)
 end
 
 function class_mt.__newindex(cls, key, val)
-    rawget(cls, "__dict")[key] = val
+    rawget(cls, '__dict')[key] = val
 end
 
 function class_mt.__call(cls,...)
-    local class_call = _lookup_class_attr(cls, "__call")
-    if class_call ~= nil then
-        return class_call(cls,...)
-    end
     return cls:__new(...)
 end
 
-do
-    for k, v in pairs(META_RUNTIME) do
-        class_mt[k] = v
+function class_mt.__tostring(cls)
+    local _system = _register_class[cls]
+    if _system.__name then
+        return string.format('class(%s)', _system.__name)
+    else
+        return string.format('class(%s)', _system.__addr)
     end
 end
 
 local instance_mt = {}
 
 if not _STD_CLASS_DEBUG then
-    instance_mt.__metatable = "protected"
+    instance_mt.__metatable = 'protected'
 end
 
-function instance_mt.__index(obj, key)
-    return _lookup_object_attr(obj, key)
-end
+instance_mt.__index = _lookup_object_attr
 
 function instance_mt.__newindex(obj, key, value)
-    rawget(obj, "__dict")[key] = value
+    rawget(obj, '__dict')[key] = value
 end
 
-function instance_mt.__call(obj,...)
-    local obj_call = _lookup_object_attr(obj, "__call")
-    if obj_call ~= nil then
-        return obj_call(obj,...)
-    end
-    raise(exception.TypeError(string.format("%s object is not callable", tostring(obj))))
-end
-
-do
-    for k, v in pairs(META_RUNTIME) do
-        instance_mt[k] = v
+local function _object_tostring(obj)
+    local _system = _register_object[obj]
+    if _system.__name then
+        return string.format('object(%s)', _system.__name)
+    else
+        return string.format('object(%s)', _system.__addr)
     end
 end
-
-
-local function _c3_mro_merge(seqs)
-    local result = {}
-    while true do
-        local candidate = nil
-        for _, seq in ipairs(seqs) do
-            if #seq > 0 then
-                local first = seq[1]
-                local valid = true
-                
-                for _, other_seq in ipairs(seqs) do
-                    for i = 2, #other_seq do
-                        if other_seq[i] == first then
-                            valid = false
-                            break
-                        end
-                    end
-                    if not valid then break end
-                end
-                
-                if valid then
-                    candidate = first
-                    break
-                end
-            end
-        end
-        
-        if not candidate then
-            raise(exception.TypeError("Inconsistent hierarchy"))
-        end
-        
-        table.insert(result, candidate)
-        
-        for _, seq in ipairs(seqs) do
-            if #seq > 0 and seq[1] == candidate then
-                table.remove(seq, 1)
-            end
-        end
-        
-        local i = 1
-        while i <= #seqs do
-            if #seqs[i] == 0 then
-                table.remove(seqs, i)
-            else
-                i = i + 1
-            end
-        end
-        
-        if #seqs == 0 then
-            break
-        end
-    end
-    return result
-end
-local function _copy_list(t)
-    local r = {}
-    for i = 1, #t do r[i] = t[i] end
-    return r
-end
-local function _c3_get_mro(cls)
-    if cls.__mro then
-        return cls.__mro
-    end
-    local bases = cls.__bases
-    local seqs = {}
-    for _, base in ipairs(bases) do
-        table.insert(seqs, _copy_list(_c3_get_mro(base)))
-    end
-    table.insert(seqs, bases)
-    local mro = _c3_mro_merge(seqs)
-    if mro[1] ~= cls then
-        table.insert(mro, 1, cls)
-    end
-    return mro
-end
-local function _compute_c3_mro(cls)
-    return _c3_get_mro(cls)
-end
-
--- local function _create_gc_sentinel(obj)
---     -- luajit / lua 5.1
---     local ud = newproxy(true)
-
---     local mt = getmetatable(ud)
-
---     mt.__gc = function()
---         _register.object[obj] = nil
-
---         local dict = rawget(obj, "__dict")
---         local gc_fn = dict and dict.__gc
---         if type(gc_fn) == "function" then
---             pcall(gc_fn, obj)
---         end
---     end
-
---     return ud
--- end
 
 local function _check_final(cls)
-    if _register.class[cls].__system.__final then
-        raise(exception.TypeError("class is final"))
+    if _register_class[cls].__final then
+        raise(exception.TypeError('class is final'))
     end
 end
 
-
-local function _new_class(name, bases, dict, opts)
-    opts = opts or {}
-    if bases and #bases > 0 then
-        for _, base in ipairs(bases) do
-            _check_final(base)
+local function _compute_mro(mro, cls, parent, base_object)
+    mro[1] = cls
+    if not base_object then
+        for i, b in ipairs(_register_class[parent].__mro) do
+            mro[i+1] = b
         end
     end
-    if bases ~= nil and #bases == 0 then
-        table.insert(bases, M.object)
-    elseif bases == nil then
-        bases = {M.object}
+end
+
+local function _new_class(name, parent, dict, opts)
+    opts = opts or {}
+    if parent ~= nil then
+        _check_final(parent)
+    elseif not opts.base_object then
+        parent = M.object
     end
+    local mro = setmetatable({}, {__mode = 'v'})
     local cls = {
         __name = name,
-        __bases = bases,
+        __mro = mro,
+        __parent = parent,
         __dict = dict or {}
     }
-    if opts.base_object then
-        cls.__mro = {cls}
-    else
-        cls.__mro = _compute_c3_mro(cls)
-    end
-    _register_cls(cls, cls.__bases, cls.__mro, opts)
+    _compute_mro(mro, cls, parent, opts.base_object)
+    _register_cls(cls, mro, parent, opts)
     return setmetatable(cls, class_mt)
 end
 
----@class std.object : table
----@field __new  fun(self: std.Class,...): std.object
----@field __call fun(self: std.Class,...): std.object
----@overload fun(self: std.Class,...): std.object
-local object = _new_class("object", {}, {}, {base_object=true})
+---@class _class_meta : table
+---@field __gc? fun(self:self)
+---@field __tostring fun(self:self):string
+---@field __add? fun(self:self, other):any
+---@field __sub? fun(self:self, other):any
+---@field __mul? fun(self:self, other):any
+---@field __div? fun(self:self, other):any
+---@field __mod? fun(self:self, other):any
+---@field __pow? fun(self:self, other):any
+---@field __unm? fun(self:self):any
+---@field __concat? fun(self:self, other):any
+---@field __lt? fun(self:self, other):boolean
+---@field __le? fun(self:self, other):boolean
+---@field __len? fun(self:self):int
+---@field __eq? fun(self:self, other):any
+---@field __pairs? fun(self:self):((fun(self:self, k, v): any, any), any, any)
+---@field __idiv? fun(self:self, other):any
+---@field __band? fun(self:self, other):any
+---@field __bor? fun(self:self, other):any
+---@field __bxor? fun(self:self, other):any
+---@field __bnot? fun(self:self):any
+---@field __shl? fun(self:self, other):any
+---@field __shr? fun(self:self, other):any
+---@field __close? fun(self:self, error_obj):any
 
----@class std._ClassType : std.object
----@alias std.Class std._ClassType
----@description Type of class objects.
+---@class class : _class_meta
+---@field __name string
+---@field __parent class
+---@field __dict table<string, any>
+---@field __call fun(self: self, ...:any...): object
+---@overload fun(self: self, ...:any...): object
 
+---@class object : class
+---@field __name string
+---@field __class class
+---@field __new fun(cls: class): self
+local object = _new_class('object', nil, {}, {base_object=true})
+
+---@param cls class
 local function _check_abstract(cls)
-    if _register.class[cls].__system.__abstract then
-        raise(exception.TypeError("class is abstract"))
+    if _register_class[cls].__abstract then
+        raise(exception.TypeError('class is abstract'))
     end
 end
 
----@return std.Class
-local function _new_object(cls,...)
+local function _collect_class_metatable(cls)
+    local t = {}
+    for _, name in ipairs(meta_names) do
+        local v = _lookup_class_attr(cls, name)
+        if v ~= nil then
+            t[name] = v
+        end
+    end
+    return t
+end
+
+---@return object
+local function _new_object(cls)
     _check_abstract(cls)
     local obj = {
         __name = cls.__name,
         __class = cls,
         __dict = {},
     }
+    if _register_class[cls].__metatable == nil then
+        local mt = _collect_class_metatable(cls)
+        for k, v in pairs(instance_mt) do
+            mt[k] = v
+        end
+        -- set default __tostring
+        if mt['__tostring'] == nil then
+            mt['__tostring'] = _object_tostring
+        end
+        _register_class[cls].__metatable = mt
+    end
     _register_obj(obj, cls)
-    return setmetatable(obj, instance_mt)
+    return setmetatable(obj, _register_class[cls].__metatable)
 end
 
 function object:__new(...)
-    -- debug_msg('object new', self.__name)
-    local obj = _new_object(self,...)
+    local obj = _new_object(self)
     obj:__init(...)
     return obj
 end
@@ -407,117 +344,43 @@ function object:__init(...) end
 -- Note: `__del` do not set the GC hook, just delete object reference from register table
 --       need rename ?
 -- function object:__del(...)
---     _register.object[self] = nil
+--     _register_object[self] = nil
 -- end
 
----@generic T, B: std.object
----@[constructor("__init", "std.object")]
+---@generic T, B: object
+---@[constructor('__init', 'object')]
 ---@param name `T`
----@param bases? B[]
+---@param parent? B
 ---@param dict? table<string, any>
 ---@return T
-function M.new(name, bases, dict)
-    return _new_class(name, bases, dict)
+function M.new(name, parent, dict)
+    return _new_class(name, parent, dict)
 end
 
-function M.new_abstract(name, bases)
-    return _new_class(name, bases, {}, {abstract = true})
+function M.new_abstract(name, parent)
+    return _new_class(name, parent, {}, {abstract = true})
 end
 
-function M.new_final(name, bases)
-    return _new_class(name, bases, {}, {final = true})
-end
-
----@generic T : std.object
----@param cls any
----@param obj any
----@param target_type T
----@return T
-local function _super_proxy(cls, obj, target_type)
-    local self = obj or cls -- if obj is nil, then cls is the target class
-    local mt = {
-        __index = function(_, k)
-            local v = cls[k]
-            if type(v) == "function" then
-                return function(_,...)
-                    return v(self,...)
-                end
-            end
-            return v
-        end,
-        __newindex = function(...)
-            raise(exception.TypeError("cannot modify super class"))
-        end
-    }
-    if not _STD_CLASS_DEBUG then
-        mt.__metatable = "protected"
-    end
-    return setmetatable({}, mt)
-end
-
--- Note: `super` returns a proxy type, not class type.
----@generic R extends std.object
----@generic T extends R
----@param cls T
----@param obj_or_cls? std.object|std.Class
----@param target_type R? only for type check
----@return R
-function M.super(cls, obj_or_cls, target_type)
-    if not M.kindof(cls, "class") then
-        raise(exception.TypeError("cls must be a class type"))
-    end
-    if cls == object then
-        raise(exception.TypeError("object has no super class"))
-    end
-
-    ---@type std.Class[]
-    local target_mro
-    local obj
-    if obj_or_cls ~= nil then
-        local kind = M.kindof(obj_or_cls)
-        if kind == "object" then
-            obj = obj_or_cls
-            target_mro = _register.class[_register.object[obj_or_cls].__system.__class].__system.__mro
-        elseif kind == "class" then
-            target_mro = _register.class[obj_or_cls].__system.__mro
-        else
-            raise(exception.TypeError("obj_or_cls must be an object or class"))
-        end
-    else
-        target_mro = _register.class[cls].__system.__mro
-    end
-
-    local len = #target_mro
-    for i, base in ipairs(target_mro) do
-        if base == cls then
-            if i < len then
-                return _super_proxy(target_mro[i+1], obj, target_type--[[@cast -?]])
-            end
-            raise(exception.TypeError(string.format("%s has no super class in target hierarchy", tostring(cls))))
-        end
-    end
-
-    raise(exception.TypeError(string.format("%s is not in target hierarchy", tostring(cls))))
+function M.new_final(name, parent)
+    return _new_class(name, parent, {}, {final = true})
 end
 
 ---@param obj any
----@param kind "object"|"class"?
----@overload fun(obj: any): "object"|"class"?
----@overload fun(obj: any, kind: "object"|"class"): boolean
+---@param kind 'object'|'class'?
+---@overload fun(obj: any): 'object'|'class'?
+---@overload fun(obj: any, kind: 'object'|'class'): boolean
 function M.kindof(obj, kind)
-    if _register.object[obj] then
-        local typ = _register.object[obj].__system.__type
+    if _register_object[obj] then
         if kind then
-            return typ == kind
+            return 'object' == kind
         else
-            return typ
+            return 'object'
         end
-    elseif _register.class[obj] then
-        local typ = _register.class[obj].__system.__type
+    elseif _register_class[obj] then
         if kind then
-            return typ == kind
+            return 'class' == kind
         else
-            return typ
+            return 'class'
         end
     else
         return nil
@@ -525,41 +388,37 @@ function M.kindof(obj, kind)
 end
 
 function M.isabstract(cls)
-    if type(cls) ~= "table" then
-        raise(exception.TypeError("class must be a table"))
+    local _sys = _register_class[cls]
+    if _sys == nil then
+        raise(exception.TypeError(string.format('class %s is not a class type', cls)))
     end
-    if not _register.class[cls] then
-        raise(exception.TypeError("class is not a class type"))
-    end
-    return _register.class[cls].__system.__abstract
+    return _sys.__abstract
 end
 
 function M.isfinal(cls)
-    if type(cls) ~= "table" then
-        raise(exception.TypeError("class must be a table"))
+    local _sys = _register_class[cls]
+    if _sys == nil then
+        raise(exception.TypeError(string.format('class %s is not a class type', cls)))
     end
-    if not _register.class[cls] then
-        raise(exception.TypeError("class is not a class type"))
-    end
-    return _register.class[cls].__system.__final
+    return _sys.__final
 end
 
----@generic T: std.object
+---@generic T: class
 ---@param cls T
 ---@param clsinfo T
 ---@return boolean
 function M.issubclass(cls, clsinfo)
-    if not M.kindof(cls, "class") then
-        raise(exception.TypeError("cls must be a class type"))
+    if not M.kindof(cls, 'class') then
+        raise(exception.TypeError('cls must be a class type'))
     end
-    if not M.kindof(clsinfo, "class") then
-        raise(exception.TypeError("clsinfo must be a class type"))
+    if not M.kindof(clsinfo, 'class') then
+        raise(exception.TypeError('clsinfo must be a class type'))
     end
     if cls == clsinfo then
         return true
     end
 
-    local mro = _register.class[cls].__system.__mro
+    local mro = _register_class[cls].__mro
     for i = 1, #mro do
         if mro[i] == clsinfo then
             return true
@@ -568,17 +427,17 @@ function M.issubclass(cls, clsinfo)
     return false
 end
 
----@generic T: std.object
+---@generic T: class
 ---@param obj any
 ---@param cls T|[T...]
 ---@return TypeGuard<T>
 ---@overload fun(obj: any, cls: T): TypeGuard<T>
 ---@overload fun(obj: any, cls: [T...]): TypeGuard<T...>
 function M.isinstance(obj, cls)
-    if not M.kindof(obj, "object") then
+    if not M.kindof(obj, 'object') then
         return false
     end
-    local obj_cls = _register.object[obj].__system.__class
+    local obj_cls = _register_object[obj].__class
     if M.kindof(cls) == nil then
         ---@cast cls [T...]
         for _, c in ipairs(cls) do
@@ -593,13 +452,90 @@ function M.isinstance(obj, cls)
     end
 end
 
+---@diagnostic disable-next-line: unused
+---@generic T : class
+---@param cls any
+---@param obj any
+---@param target_type T
+---@return T
+local function _super_proxy(cls, obj, target_type)
+    local self = obj or cls -- if obj is nil, then cls is the target class
+    local proxy
+    local mt = {
+        __index = function(_, k)
+            local v = cls[k]
+            if type(v) == 'function' then
+                return function(arg1,...)
+                    if arg1 == proxy then
+                        return v(self,...)
+                    else
+                        return v(arg1,...)
+                    end
+                end
+            end
+            return v
+        end,
+        __newindex = function(...)
+            raise(exception.TypeError('cannot modify super class'))
+        end
+    }
+    if not _STD_CLASS_DEBUG then
+        mt.__metatable = 'protected'
+    end
+    proxy = setmetatable({}, mt) --[[@as T]]
+    return proxy
+end
+
+-- Note: `super` returns a proxy type, not class type.
+---@generic R extends class
+---@generic T extends R
+---@param cls T
+---@param obj_or_cls? object|class
+---@param target_type R? only for type check
+---@return R
+function M.super(cls, obj_or_cls, target_type)
+    if not M.kindof(cls, 'class') then
+        raise(exception.TypeError('cls must be a class type'))
+    end
+    if cls == object then
+        raise(exception.TypeError('object has no super class'))
+    end
+
+    local obj
+    local target_mro
+    if obj_or_cls ~= nil then
+        local kind = M.kindof(obj_or_cls)
+        if kind == 'object' then
+            obj = obj_or_cls
+            target_mro = _register_class[_register_object[obj_or_cls].__class].__mro
+        elseif kind == 'class' then
+            target_mro = _register_class[obj_or_cls].__mro
+        else
+            raise(exception.TypeError('obj_or_cls must be an object or class'))
+        end
+    else
+        target_mro = _register_class[cls].__mro
+    end
+
+    local len = #target_mro
+    for i, base in ipairs(target_mro) do
+        if base == cls then
+            if i < len then
+                return _super_proxy(target_mro[i+1], obj, target_type--[[@cast -?]])
+            end
+            raise(exception.TypeError(string.format('%s has no super class in target hierarchy', tostring(cls))))
+        end
+    end
+
+    raise(exception.TypeError(string.format('%s is not in target hierarchy', tostring(cls))))
+end
 
 M.object = object
 
 local _M_mt = {__call = M.new}
 if not _STD_CLASS_DEBUG then
-    _M_mt.__metatable = "protected"
+    _M_mt.__metatable = 'protected'
 end
----@type std.class
+---@type classlib
 local _M = setmetatable(M, _M_mt)
 return _M

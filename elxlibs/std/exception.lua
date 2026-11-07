@@ -1,6 +1,6 @@
+---@namespace std
 
-
----@class std.exception : std._exception
+---@class exception : _exception
 local M = {}
 
 local type = type
@@ -106,7 +106,7 @@ function M.traceback(thread, err, level)
 
     if err ~= nil then
         local _, is_exc
-        _, _, is_exc = _traceback(err, level + 1, true)
+        err, _, is_exc = _traceback(err, level + 1, true)
         if is_exc then
             return tostring(err)
         elseif err:find("stack traceback:") then

@@ -15,6 +15,7 @@ local class = require "elxlibs.std.class"
 
 -- lazy initialization of modules
 require "elxlibs.std.exception_init"
+require "elxlibs.std.mp_event_loop_wrap"
 
 function M.round(num)
     if num >= 0 then
