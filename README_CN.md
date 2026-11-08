@@ -149,11 +149,13 @@ end))
 
 ## 测试
 
-`test/asyncio` 是针对 asyncio 核心（任务、取消、`Queue`、`Timeout`、amp 停机/`finally` 路径）与 `std` 异常体系的独立测试套件。它不需要 mpv，`mp` 已打桩，直接用 LuaJIT 运行：
+`test/asyncio` 使用 [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) 子模块运行 asyncio 核心（任务、取消、`Queue`、`Timeout`、amp 停机/`finally` 路径）与 `std` 异常测试。它不需要 mpv，`mp` 已打桩，直接用 LuaJIT 运行：
 
 ```sh
+git submodule update --init --recursive
 luajit test/asyncio/run.lua          # 跑全部
 luajit test/asyncio/run.lua amp      # 只跑文件名匹配的用例
+luajit test/asyncio/run.lua -v       # 显示详细结果
 ```
 
 全部通过时退出码为 `0`。目录结构与约定见 [test/asyncio/README.md](test/asyncio/README.md)。

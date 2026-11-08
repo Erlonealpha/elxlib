@@ -1,0 +1,3 @@
+[submodule "test/vendor/mpv-luatest"]
+	path = test/vendor/mpv-luatest
+	url = https://github.com/Erlonealpha/mpv-luatest.git

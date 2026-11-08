@@ -149,11 +149,13 @@ end))
 
 ## Tests
 
-`test/asyncio` contains a standalone suite for the asyncio core (tasks, cancellation, `Queue`, `Timeout`, the amp shutdown/`finally` path) and the `std` exception plumbing. It runs on a bare LuaJIT — mpv is not required, `mp` is stubbed:
+`test/asyncio` uses the [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) submodule for the asyncio core (tasks, cancellation, `Queue`, `Timeout`, amp shutdown/`finally`) and `std` exception tests. It runs on bare LuaJIT with a stubbed `mp` API:
 
 ```sh
+git submodule update --init --recursive
 luajit test/asyncio/run.lua          # whole suite
 luajit test/asyncio/run.lua amp      # only files whose name matches
+luajit test/asyncio/run.lua -v       # detailed output
 ```
 
 The exit code is `0` when everything passes. See [test/asyncio/README.md](test/asyncio/README.md) for the layout and conventions.

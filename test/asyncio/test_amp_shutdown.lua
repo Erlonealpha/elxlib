@@ -10,9 +10,9 @@
 -- mp.wait_event(), so a callback waiting for an mpv event (case 5) never
 -- completed and mpv could not shut down.
 
-local F = require("framework")
+local F = require("mpv_luatest.framework")
 local support = require("support")
-local mp_stub = require("mp_stub")
+local amp_stub = require("amp_stub")
 
 local std = require("elxlibs.std")
 
@@ -114,7 +114,7 @@ case {
     end,
     check = function(rec)
         F.eq(rec.ok, false, "loop reported a failure")
-        F.is_error(rec.err, "finally-boom", "the callback error is surfaced")
+        F.contains(rec.err, "finally-boom", "the callback error is surfaced")
     end,
 }
 
@@ -168,7 +168,7 @@ case {
     end,
     check = function(rec)
         F.eq(rec.ok, false, "loop reported the handler failure")
-        F.is_error(rec.err, "handler-boom", "the handler error is surfaced")
+        F.contains(rec.err, "handler-boom", "the handler error is surfaced")
         F.eq(table.concat(rec.runs, ","), "cleanup", "cleanup still ran")
     end,
 }
@@ -186,7 +186,7 @@ case {
     end,
     check = function(rec)
         F.eq(rec.ok, false, "loop reported the failure")
-        F.is_error(rec.err, "shutdown-handler-boom", "the handler error is surfaced")
+        F.contains(rec.err, "shutdown-handler-boom", "the handler error is surfaced")
         F.eq(table.concat(rec.runs, ","), "cleanup", "cleanup still ran")
     end,
 }
@@ -202,7 +202,7 @@ case {
     end,
     check = function(rec)
         F.eq(rec.ok, false, "loop reported the failure")
-        F.is_error(rec.err, "test-boom", "the loop error is surfaced")
+        F.contains(rec.err, "test-boom", "the loop error is surfaced")
         F.eq(table.concat(rec.runs, ","), "cleanup", "cleanup still ran")
     end,
 }
@@ -217,7 +217,7 @@ case {
     end,
     check = function(rec)
         F.eq(rec.ok, false, "loop reported the failure")
-        F.is_error(rec.err, "handler-boom", "the handler error is surfaced")
+        F.contains(rec.err, "handler-boom", "the handler error is surfaced")
     end,
 }
 
@@ -238,7 +238,7 @@ case {
     end,
     check = function(rec)
         F.eq(rec.ok, false, "the loop stopped by itself")
-        F.is_error(rec.err, "unhandled-boom", "the error is reported")
+        F.contains(rec.err, "unhandled-boom", "the error is reported")
         F.eq(table.concat(rec.runs, ","), "cleanup", "the finally callback ran")
         F.ok(rec.wait_calls < 40,
             "the loop did not wait for a shutdown event (" .. rec.wait_calls .. " wait_event calls)")
@@ -259,7 +259,7 @@ case {
     end,
     check = function(rec)
         F.eq(rec.ok, false, "the deadlock surfaced as an error")
-        F.is_error(rec.err, "TEST-LIMIT", "it was caught by the stub, not hung")
+        F.contains(rec.err, "TEST-LIMIT", "it was caught by the stub, not hung")
     end,
 }
 
@@ -267,7 +267,7 @@ case {
 
 for _, c in ipairs(cases) do
     F.test(c.name, function()
-        local stub = mp_stub.new(c.opts)
+        local stub = amp_stub.new(c.opts)
         local asyncio = support.reload_asyncio(stub)
         local amp = require("elxlibs.asyncio.amp")
         local rec = { runs = {}, order = {} }

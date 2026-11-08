@@ -1,7 +1,7 @@
 -- Cancellation semantics: the bookkeeping (cancelling/uncancel) used by
 -- asyncio.Timeout, plus the two paths a cancel request can take.
 
-local F = require("framework")
+local F = require("mpv_luatest.framework")
 local support = require("support")
 
 local asyncio = require("elxlibs.asyncio")
@@ -39,7 +39,7 @@ F.test("cancel() before the task ever ran is not dropped", function()
         ok, err = asyncio.try_await(t)
     end, support.real_loop(asyncio))
     F.eq(ok, false, "task is cancelled")
-    F.is_error(err, "asyncio.CancelledError", "CancelledError is reported")
+    F.contains(err, "CancelledError", "CancelledError is reported")
     F.contains(tostring(err), "early", "cancel message is kept")
 end)
 
@@ -55,7 +55,7 @@ F.test("cancel() while awaiting a future cancels the await point", function()
         ok, err = asyncio.try_await(t)
     end, support.real_loop(asyncio))
     F.eq(ok, false, "task is cancelled")
-    F.is_error(err, "asyncio.CancelledError", "CancelledError is reported")
+    F.contains(err, "CancelledError", "CancelledError is reported")
     F.contains(tostring(err), "mid", "cancel message is kept")
 end)
 
@@ -68,7 +68,7 @@ F.test("try_await() reports cancellation instead of raising", function()
         ok, err = asyncio.try_await(fut)
     end, support.real_loop(asyncio))
     F.eq(ok, false, "returns false")
-    F.is_error(err, "asyncio.CancelledError", "returns the CancelledError")
+    F.contains(err, "CancelledError", "returns the CancelledError")
 end)
 
 F.test("cancelled tasks surface CancelledError through await()", function()
@@ -81,7 +81,7 @@ F.test("cancelled tasks surface CancelledError through await()", function()
         local _ok, err = asyncio.try_await(t)
         raised = err
     end, support.real_loop(asyncio))
-    F.is_error(raised, "asyncio.CancelledError", "cancellation is visible")
+    F.contains(raised, "CancelledError", "cancellation is visible")
     F.ok(std.isinstance(raised, exceptions.CancelledError),
         "and is a real CancelledError instance")
 end)

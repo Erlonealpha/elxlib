@@ -19,20 +19,22 @@ local NOOP_NAMES = {
     "set_property", "_sync",
 }
 
----@class test.mp_stub
+---@class test.amp_stub
 ---@field wait_calls integer
 ---@field events table<string, any[]>   delivered `mpv` events, by name
 ---@field messages string[]             everything written to mp.msg
 
----@param opts? {
----   verbose?: boolean,             print mp.msg output
----   script?: table<integer, string>,  wait_event call # -> event name
----   error_at?: integer,            raise inside wait_event at call #
----   error_msg?: string,
----   limit?: integer,               hard cap on wait_event calls (default 500)
----   watchdog?: number,             seconds of CPU time before failing (default 10)
----   }
----@return test.mp_stub
+---@class _asyncio_test.amp_stub_new_opts
+---@field verbose? boolean                  print mp.msg output
+---@field script? table<integer, string>    wait_event call # -> event name
+---@field error_at? integer                 raise inside wait_event at call #
+---@field error_msg? string
+---@field limit? integer                    hard cap on wait_event calls (default 500)
+---@field watchdog? number                  seconds of CPU time before failing (default 10)
+---@field max_block? number
+
+---@param opts? _asyncio_test.amp_stub_new_opts?
+---@return test.amp_stub
 function M.new(opts)
     opts = opts or {}
     local limit = opts.limit or 500

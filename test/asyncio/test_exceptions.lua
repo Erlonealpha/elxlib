@@ -1,7 +1,7 @@
 -- std exception plumbing: raise()/traceback() levels, exception chaining and
 -- the xpcall/try wrappers that asyncio error handling is built on.
 
-local F = require("framework")
+local F = require("mpv_luatest.framework")
 require("support")
 
 local std = require("elxlibs.std")
@@ -12,7 +12,7 @@ F.test("string errors keep their file:line position", function()
     local err
     local line
     local ok, e = pcall(function()
-        line = debug.getinfo(1, "l").currentline + 1
+        line = assert(debug.getinfo(1, "l")).currentline + 1
         std.raise("plain-string-error")
     end)
     F.eq(ok, false, "raise() throws")
@@ -30,13 +30,13 @@ end)
 F.test("exception objects capture a traceback (when raising)", function()
     local err, line
     local ok, e = pcall(function()
-        line = debug.getinfo(1, "l").currentline + 1
+        line = assert(debug.getinfo(1, "l")).currentline + 1
         std.raise(std.ValueError("exc-error"))
     end)
     F.eq(ok, false, "raise() throws")
     err = e
     F.eq(type(err), "table", "the exception object itself is thrown")
-    F.is_error(err, "std.ValueError", "exception type survives")
+    F.contains(err, "ValueError", "exception type survives")
     F.contains(tostring(err), ":" .. line .. ":", "traceback starts at the raise() site")
 end)
 
@@ -45,8 +45,11 @@ F.test("raise(err, level, from) chains __cause", function()
         std.raise(std.ValueError("outer"), nil, std.RuntimeError("inner"))
     end)
     F.eq(ok, false, "raise() throws")
-    F.is_error(e, "std.ValueError", "outer exception")
-    F.is_error(e.__cause, "std.RuntimeError", "__cause holds the inner exception")
+    F.ok(std.isinstance(e, std.ValueError), "outer exception")
+    if not std.isinstance(e, std.ValueError) then
+        return
+    end
+    F.ok(std.isinstance(e.__cause, std.RuntimeError), "__cause holds the inner exception")
     F.contains(tostring(e), "The above exception was the direct cause",
         "tostring() renders the chain")
 end)
@@ -60,18 +63,22 @@ F.test("traceback(message) keeps the message", function()
 end)
 
 F.test("traceback(thread, err, level) walks the given coroutine's stack", function()
+    ---@type integer?
+    local error_line
     local co = coroutine.create(function()
+        error_line = assert(debug.getinfo(1, "l")).currentline + 1
         error("inside-coroutine")
     end)
     coroutine.resume(co)          -- dies with an error
     local tb = std.traceback(co, "thread-error", 0)
     F.contains(tb, "thread-error", "message present")
-    F.contains(tb, "test_exceptions.lua:6", "coroutine frames are reported")
+    F.contains(tb, "test_exceptions.lua:" .. assert(error_line) .. "]", "coroutine frames are reported")
     F.ok(not tb:find("in function 'traceback'", 1, true),
         "does not report the traceback helper's own frames")
 end)
 
 F.test("xpcall preserves multiple return values", function()
+    ---@type { n: integer, [integer]: integer|boolean }
     local r = table.pack(std.xpcall(function() return 1, 2, 3 end))
     F.eq(r.n, 4, "ok + 3 values")
     F.eq(r[1], true, "call succeeded")
@@ -80,20 +87,22 @@ end)
 
 F.test("try/catch/finally keeps results and routes errors", function()
     local caught
-    local a, b = std.try{ function() return "x", "y" end }
+    local returns_pair = function() return "x", "y" end
+    local a, b = std.try{ returns_pair }
     F.eq(a .. b, "xy", "values pass through")
 
     std.try{
         function() error(std.ValueError("try-catch")) end,
         std.catch{ function(e) caught = e end },
     }
-    F.is_error(caught, "ValueError", "catch receives the error")
+    F.contains(caught, "ValueError", "catch receives the error")
 end)
 
 F.test("try/finally runs the finally block", function()
     local order = {}
+    local returns_pair = function() return "x", "y" end
     local a, b = std.try{
-        function() return "x", "y" end,
+        returns_pair,
         std.finally{ function(ok) order[#order + 1] = "finally:" .. tostring(ok) end },
     }
     F.eq(a .. b, "xy", "values pass through")

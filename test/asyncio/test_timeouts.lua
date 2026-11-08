@@ -1,7 +1,7 @@
 -- asyncio.Timeout / wait_for: the timer handle plumbing and the conversion of
 -- an own-cancellation into TimeoutError.
 
-local F = require("framework")
+local F = require("mpv_luatest.framework")
 local support = require("support")
 
 local asyncio = require("elxlibs.asyncio")
@@ -32,9 +32,11 @@ F.test("wait_for(task, timeout) raises TimeoutError", function()
         ok, err = asyncio.try_await(asyncio.wait_for(t, 0.05))
     end, support.real_loop(asyncio))
     F.eq(ok, false, "wait_for fails")
-    F.is_error(err, "std.TimeoutError", "TimeoutError is raised")
+    F.contains(err, "TimeoutError", "TimeoutError is raised")
     F.ok(std.isinstance(err, std.TimeoutError), "and it is an instance, not the class")
-    F.is_error(err.__cause, "CancelledError", "the cancellation is kept as __cause")
+    if std.isinstance(err, std.TimeoutError) then
+        F.contains(err.__cause, "CancelledError", "the cancellation is kept as __cause")
+    end
 end)
 
 F.test("wait_for(future, timeout) works on plain futures", function()
@@ -45,7 +47,7 @@ F.test("wait_for(future, timeout) works on plain futures", function()
         ok, err = asyncio.try_await(asyncio.wait_for(fut, 0.05))
     end, support.real_loop(asyncio))
     F.eq(ok, false, "wait_for fails")
-    F.is_error(err, "std.TimeoutError", "TimeoutError is raised")
+    F.contains(err, "TimeoutError", "TimeoutError is raised")
 end)
 
 F.test("wait_for(fut, 0) reports a completed future / cancels a pending one", function()
@@ -62,8 +64,12 @@ F.test("wait_for(fut, 0) reports a completed future / cancels a pending one", fu
     F.eq(done_ok, true, "finished future returns immediately")
     F.eq(done_val, "ready", "with its result")
     F.eq(pending_ok, false, "pending future is cancelled")
-    F.is_error(pending_err, "std.TimeoutError", "TimeoutError is raised")
-    F.is_error(pending_err.__cause, "CancelledError", "with the cancellation as __cause")
+    F.contains(pending_err, "TimeoutError", "TimeoutError is raised")
+    if std.isinstance(pending_err, std.TimeoutError) then
+        F.contains(pending_err.__cause, "CancelledError", "with the cancellation as __cause")
+    else
+        F.fail("pending future must produce a TimeoutError instance")
+    end
 end)
 
 F.test("Timeout:with() runs the target and forwards its result", function()
@@ -88,8 +94,12 @@ F.test("Timeout:with() converts its own cancellation into TimeoutError", functio
         ok, err = asyncio.try_await(timeouts.timeout(0.05):with(t))
     end, support.real_loop(asyncio))
     F.eq(ok, false, "times out")
-    F.is_error(err, "std.TimeoutError", "TimeoutError is raised")
-    F.is_error(err.__cause, "CancelledError", "with __cause set")
+    F.contains(err, "TimeoutError", "TimeoutError is raised")
+    if std.isinstance(err, std.TimeoutError) then
+        F.contains(err.__cause, "CancelledError", "with __cause set")
+    else
+        F.fail("Timeout:with must produce a TimeoutError instance")
+    end
 end)
 
 F.test("Timeout state machine reports expiry", function()
