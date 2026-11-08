@@ -12,7 +12,7 @@
 - 提供面向 mpv 的工具封装，包括 subprocess、同步/异步文件系统操作、协程事件循环和锁文件。
 - 提供基于协程的 `asyncio` 层：任务、`await`/`try_await`、`Queue`、`Timeout`/`wait_for`、取消语义，以及面向 mpv 的事件循环。
 - 附带 EmmyLua/LuaLS 类型标注，便于在编辑器中获得补全和类型提示。
-- 附带独立测试套件（`test/asyncio`），不需要 mpv，直接用 LuaJIT 运行。
+- 提供统一测试入口（`test/run.lua`）和分组测试目录，不需要 mpv，直接用 LuaJIT 运行。
 
 ## 环境要求与限制
 
@@ -149,16 +149,17 @@ end))
 
 ## 测试
 
-`test/asyncio` 使用 [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) 子模块覆盖当前 asyncio 公开 API、取消和生命周期回归、amp 适配器及 `std` 异常。默认套件不需要 mpv，`mp` 已打桩，直接用 LuaJIT 运行：
+`test/run.lua` 使用 [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) 子模块自动发现 `test/test_<group>/test_*.lua`。当前 `test_asyncio` 分组覆盖 asyncio 公开 API、取消和生命周期回归、amp 适配器及 `std` 异常。默认套件不需要 mpv，asyncio 分组为 `mp` 打桩，直接用 LuaJIT 运行：
 
 ```sh
 git submodule update --init --recursive
-luajit test/asyncio/run.lua          # 跑全部
-luajit test/asyncio/run.lua amp      # 只跑文件名匹配的用例
-luajit test/asyncio/run.lua -v       # 显示详细结果
+luajit test/run.lua          # 跑全部
+luajit test/run.lua asyncio  # 仅 asyncio 分组
+luajit test/run.lua amp      # 只跑文件名匹配的用例
+luajit test/run.lua -v       # 显示详细结果
 ```
 
-全部通过时退出码为 `0`。覆盖清单、目录约定及可选的隔离真实宿主检查（`python test/asyncio/real_host.py`）见 [test/asyncio/README.md](test/asyncio/README.md)。
+全部通过时退出码为 `0`。新增分组的约定见 [test/README.md](test/README.md)；覆盖清单及可选的隔离真实宿主检查（`python test/test_asyncio/real_host.py`）见 [test/test_asyncio/README.md](test/test_asyncio/README.md)。
 
 ## 目录结构
 

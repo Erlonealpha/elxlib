@@ -11,8 +11,8 @@
 -- completed and mpv could not shut down.
 
 local F = require("mpv_luatest.framework")
-local support = require("support")
-local amp_stub = require("amp_stub")
+local support = require("test_asyncio.support")
+local amp_stub = require("test_asyncio.amp_stub")
 
 local std = require("elxlibs.std")
 

@@ -11,7 +11,8 @@ Before changing code, read:
 
 1. `README.md` or `README_CN.md` for supported modules and platform limits.
 2. The source and public annotations of the module being changed.
-3. `test/asyncio/README.md` for test setup, coverage and the validation baseline.
+3. `test/README.md` for test setup and group layout; the owning group's README
+   (currently `test/test_asyncio/README.md`) for coverage and validation baseline.
 4. This guide for development and commit requirements.
 
 There is no separate current design-document tree. Keep documentation beside
@@ -29,7 +30,8 @@ implemented. Update both root READMEs when their shared public instructions chan
 | `elxlibs/fs/`, `aiofs/`, `mptl/`, `lockfile/` | Filesystem, subprocess and host helpers |
 | `elxlibs/cjson/`, `rex/`, `lxp/`, `socket/`, `websocket/` | Native wrappers and network helpers |
 | `bin/` | Tracked executables and DLLs required by supported modules |
-| `test/asyncio/` | Offline tests, project bootstrap and scripted amp host |
+| `test/run.lua`, `test/bootstrap.lua` | Shared test entry and LuaJIT setup |
+| `test/test_asyncio/` | Asyncio tests, group setup and scripted amp host |
 | `test/vendor/mpv-luatest/` | Pinned test-framework Git submodule |
 
 Use `require 'elxlibs.module'` inside the library. Keep production alias setup in
@@ -44,7 +46,8 @@ native helpers merely because they are imported.
 
 Shared discovery, assertion and general fake-host implementations belong to
 mpv-luatest. Project globals, LuaJIT shims and scripted `wait_event` behavior belong
-to `test/asyncio/bootstrap.lua`, `support.lua` and `amp_stub.lua`. Do not copy the
+to `test/bootstrap.lua` and the owning group's helpers. Asyncio's host setup lives
+in `test/test_asyncio/bootstrap.lua`, `support.lua` and `amp_stub.lua`. Do not copy the
 shared framework back into this repository or modify the submodule implicitly.
 
 ## 3. Runtime and public contracts
@@ -107,7 +110,7 @@ diagnostic JSON, local environments and validation fixtures outside tracked file
 
 ```sh
 git submodule update --init --recursive
-luajit test/asyncio/run.lua
+luajit test/run.lua
 emmylua_check .
 git diff --check
 git diff --cached --check
@@ -121,9 +124,9 @@ claiming zero diagnostics. Use project-root analysis so library types resolve.
 For runner/bootstrap or dependency integration changes, also run:
 
 ```sh
-luajit test/vendor/mpv-luatest/run.lua --test-dir test/asyncio --bootstrap test/asyncio/bootstrap.lua
-luajit test/asyncio/run.lua -v exceptions
-luajit test/asyncio/run.lua --help
+luajit test/vendor/mpv-luatest/run.lua --test-dir test --bootstrap test/bootstrap.lua
+luajit test/run.lua -v exceptions
+luajit test/run.lua --help
 ```
 
 Verify an absolute entry from another working directory, an empty filter and
@@ -142,16 +145,20 @@ and static checks in that repository, publish the dependency commit before relyi
 on its gitlink elsewhere, then rerun this project's checks. Do not automatically
 push or publish without user authorization.
 
-Current tests are offline. They do not validate native DLL loading, real mpv
-input/rendering or IPC. Add isolated real-host coverage when changing those
+The default suite is offline. Asyncio has an optional headless real-host smoke
+test; it does not validate native DLL loading or real mpv input/rendering.
+Add isolated real-host coverage when changing those
 boundaries; own and terminate only fixture-created processes, never mpv by image name.
 
 ## 7. Test layout and commits
 
-Keep the existing `test/asyncio/run.lua` entry. The dependency discovers
-`test_*.lua` in `test/asyncio` and nested directories beginning with `test`;
-fixtures and dependency tests are excluded from the project suite. Update
-`test/asyncio/README.md` when coverage, counts or setup intentionally change.
+Use the shared `test/run.lua` entry. The dependency discovers `test_*.lua` under
+`test/test_<group>/` and nested directories beginning with `test`; fixtures and
+dependency tests are excluded. New groups need no runner registration. Import
+group helpers by their `test_<group>.*` names to avoid module-name collisions.
+Keep shared bootstrap host-independent and put group-specific setup in that
+group's helpers. Update `test/README.md` and the owning group's README when
+coverage, counts or setup intentionally change.
 
 Use conventional commits such as `test(asyncio):`, `fix(std):`, `refactor(asyncio):`
 and `docs:`. Stage related code, documentation, `.gitmodules` and gitlinks by

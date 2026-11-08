@@ -2,7 +2,7 @@
 -- (ok, value|error) try_await protocol: Queue, Lock, shield.
 
 local F = require("mpv_luatest.framework")
-local support = require("support")
+local support = require("test_asyncio.support")
 
 local asyncio = require("elxlibs.asyncio")
 local std = require("elxlibs.std")

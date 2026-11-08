@@ -5,6 +5,8 @@
 -- plain `require` (the real init.lua is NOT involved, so no ffi / mp.utils /
 -- DLL-path setup is required).
 
+require 'test_asyncio.bootstrap'
+
 local S = {}
 
 --- Deliberately invalid inputs for runtime boundary tests.

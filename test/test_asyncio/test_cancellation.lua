@@ -2,7 +2,7 @@
 -- asyncio.Timeout, plus the two paths a cancel request can take.
 
 local F = require("mpv_luatest.framework")
-local support = require("support")
+local support = require("test_asyncio.support")
 
 local asyncio = require("elxlibs.asyncio")
 local std = require("elxlibs.std")

@@ -1,5 +1,5 @@
 local F = require 'mpv_luatest.framework'
-local S = require 'support'
+local S = require 'test_asyncio.support'
 local asyncio = require 'elxlibs.asyncio'
 local std = require 'elxlibs.std'
 local exceptions = require 'elxlibs.asyncio.exceptions'

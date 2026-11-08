@@ -12,7 +12,7 @@ A Lua script integration library for MPV / mpv.net. elxlib collects common Lua u
 - Provides mpv-oriented helpers for subprocess calls, sync/async filesystem operations, coroutine scheduling, and lock files.
 - Ships a coroutine-based `asyncio` layer with tasks, `await`/`try_await`, `Queue`, `Timeout`/`wait_for`, cancellation and a mpv-oriented event loop.
 - Includes EmmyLua/LuaLS annotations for editor completion and type hints.
-- Includes a standalone test-suite (`test/asyncio`) that runs on plain LuaJIT without mpv.
+- Includes a shared test entry (`test/run.lua`) with grouped suites that run on plain LuaJIT without mpv.
 
 ## Requirements And Limits
 
@@ -149,16 +149,17 @@ end))
 
 ## Tests
 
-`test/asyncio` uses the [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) submodule to cover the current asyncio public APIs, cancellation/lifecycle regressions, amp adapters and `std` exceptions. The default suite runs on bare LuaJIT with a stubbed `mp` API:
+`test/run.lua` uses the [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) submodule to discover `test/test_<group>/test_*.lua`. The current `test_asyncio` group covers asyncio public APIs, cancellation/lifecycle regressions, amp adapters and `std` exceptions. The default suite runs on bare LuaJIT; asyncio installs a stubbed `mp` API:
 
 ```sh
 git submodule update --init --recursive
-luajit test/asyncio/run.lua          # whole suite
-luajit test/asyncio/run.lua amp      # only files whose name matches
-luajit test/asyncio/run.lua -v       # detailed output
+luajit test/run.lua          # whole suite
+luajit test/run.lua asyncio  # asyncio group
+luajit test/run.lua amp      # only files whose name matches
+luajit test/run.lua -v       # detailed output
 ```
 
-The exit code is `0` when everything passes. See [test/asyncio/README.md](test/asyncio/README.md) for the coverage inventory, conventions and optional isolated real-host check (`python test/asyncio/real_host.py`).
+The exit code is `0` when everything passes. See [test/README.md](test/README.md) for adding groups, and [test/test_asyncio/README.md](test/test_asyncio/README.md) for coverage and the optional isolated real-host check (`python test/test_asyncio/real_host.py`).
 
 ## Project Layout
 

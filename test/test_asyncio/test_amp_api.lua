@@ -1,6 +1,6 @@
 local F = require 'mpv_luatest.framework'
-local S = require 'support'
-local amp_stub = require 'amp_stub'
+local S = require 'test_asyncio.support'
+local amp_stub = require 'test_asyncio.amp_stub'
 local std = require 'elxlibs.std'
 
 F.section('amp public adapters')

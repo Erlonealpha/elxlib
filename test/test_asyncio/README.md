@@ -8,13 +8,15 @@ reporting, and run on **bare LuaJIT** with a project-specific `mp` stub.
 
 ```sh
 git submodule update --init --recursive
-luajit test/asyncio/run.lua            # whole suite
-luajit test/asyncio/run.lua amp        # amp adapters and shutdown tests
-luajit test/asyncio/run.lua -v         # include files, sections and successful tests
-luajit test/asyncio/run.lua exceptions # std exception tests
+luajit test/run.lua            # all groups
+luajit test/run.lua asyncio    # this group
+luajit test/run.lua asyncio/locks # this group's lock tests
+luajit test/run.lua amp        # amp adapters and shutdown tests
+luajit test/run.lua -v         # include files, sections and successful tests
+luajit test/run.lua exceptions # std exception tests
 ```
 
-The entry resolves the project and dependency relative to itself, so an absolute
+The shared entry in `test/run.lua` resolves the project and dependency relative to itself, so an absolute
 path to `run.lua` also works from another working directory. Exit code is `0`
 when everything passes or help is requested, and `1` for failures, invalid
 arguments or an empty filter match. The default output shows failures and totals.
@@ -24,15 +26,16 @@ cloning elxlib, initialize it with the command above, or use
 `git clone --recurse-submodules`. To invoke the dependency's CLI directly:
 
 ```sh
-luajit test/vendor/mpv-luatest/run.lua --test-dir test/asyncio --bootstrap test/asyncio/bootstrap.lua
+luajit test/vendor/mpv-luatest/run.lua --test-dir test --bootstrap test/bootstrap.lua asyncio
 ```
 
 ## Layout
 
 | File | Contents |
 | --- | --- |
-| `run.lua` | Adapter to `mpv_luatest.suite.main`; keeps the existing entry command |
-| `bootstrap.lua` | LuaJIT 5.2 shims, project globals and default host stub |
+| `../run.lua` | Shared adapter to `mpv_luatest.suite.main`, discovers all groups |
+| `../bootstrap.lua` | Shared LuaJIT shims and project globals |
+| `bootstrap.lua` | Asyncio host stub setup, loaded by `test_asyncio.support` |
 | `support.lua` | Real-clock loop, bounded task runner and module reload helpers |
 | `amp_stub.lua` | Project `mp` stub: scripted event payloads, raw API call recording, clock, watchdog and logs |
 | `test_core.lua` | `await`/`try_await`/`gather`, `Queue`, `Lock`, `shield` |
@@ -75,8 +78,8 @@ claim of complete line/branch coverage or every possible interleaving.
 Optional real-host validation (Python 3.8+ and a mpv executable on PATH):
 
 ```sh
-python test/asyncio/real_host.py
-python test/asyncio/real_host.py --mpv /path/to/mpv
+python test/test_asyncio/real_host.py
+python test/test_asyncio/real_host.py --mpv /path/to/mpv
 ```
 
 `ELXLIB_MPV_BINARY` can select the executable. The runner uses a temporary config,
@@ -94,6 +97,8 @@ physical key input or playback hooks.
   string-based `F.is_error` helper; exception names follow the current runtime.
 - `test_*.lua` files are discovered in sorted order. Nested directories must
   start with `test`; the dependency's own tests under `test/vendor` are excluded.
+- Helpers are imported as `test_asyncio.support` and `test_asyncio.amp_stub`;
+  new groups can have their own helpers without sharing those module names.
 - `support.reload_asyncio(stub)` drops the `elxlibs.asyncio*` modules so each
   amp case starts from pristine state (the loop instance, `_stoping` and the
   registered `finally` callbacks are module locals of `asyncio/mp.lua`).
@@ -111,14 +116,14 @@ physical key input or playback hooks.
 
 ## Development checks and baseline
 
-Follow the root [AGENTS.md](../../AGENTS.md): inspect existing changes, implement
+Follow the shared [test guide](../README.md) and root [AGENTS.md](../../AGENTS.md): inspect existing changes, implement
 in the owning module, run focused checks while iterating, then verify the entire
 suite and static diagnostics before reviewing and staging explicit commit paths.
 Run from the project root:
 
 ```sh
 git submodule update --init --recursive
-luajit test/asyncio/run.lua
+luajit test/run.lua
 emmylua_check .
 git diff --check
 git diff --cached --check
@@ -142,7 +147,7 @@ Validated on 2026-11-08 with Windows and LuaJIT 2.1.1748459687:
   empty matches, invalid options and missing dependency diagnostics passed.
 - Pinned framework `66e921ca2da4ae79cf7b2c88eb43621ebd417830`: **41 assertions
   passed**, standalone example **2 assertions passed**; dependency checkout clean.
-- EmmyLua project-root analysis: **0 errors**, **0 warnings in `test/asyncio`**,
+- EmmyLua project-root analysis: **0 errors**, **0 warnings in `test/test_asyncio`**,
   **55 existing warnings elsewhere**. This is not a zero-diagnostic project run.
 - Forced-GC event/timer/idle error regressions pass.
 - Optional headless mpv.net 7.1.2 smoke: message, property, async command, timer
