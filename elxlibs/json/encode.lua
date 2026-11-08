@@ -57,14 +57,13 @@ function encoder:encode_table(val, stack, level)
     stack = stack or {}
     level = level or 0
 
-    -- Circular reference?
-    if stack[val] then error("circular reference") end
-
-    stack[val] = true
-
     if self.nil_placeholder ~= nil and val == self.nil_placeholder then
         return tostring(self.nil_placeholder)
     end
+
+    -- Circular reference?
+    if stack[val] then error("circular reference") end
+    stack[val] = true
 
     if rawget(val, 1) ~= nil or next(val) == nil then
         -- Treat as array -- check keys are valid and it is not sparse

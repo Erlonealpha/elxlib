@@ -95,7 +95,7 @@ JSON：
 local json = require "elxlibs.json"
 
 local text = json.dumps({items = {1, 2, 3}, empty = json.null}, 2)
-local data = json.loads(text)
+local data = json.loads(text, json.null) -- 保留 null 字段和数组位置
 ```
 
 subprocess：

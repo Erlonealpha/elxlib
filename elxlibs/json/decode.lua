@@ -123,18 +123,6 @@ function decoder.new(nil_placeholder)
     return setmetatable({nil_placeholder = nil_placeholder, char_func_name_map = char_func_name_map}, decoder)
 end
 
-local function parse_unicode_escape(s)
-    local n1 = tonumber( s:sub(1, 4),    16 )
-    local n2 = tonumber( s:sub(7, 10), 16 )
-    -- Surrogate pair?
-    if n2 then
-        return codepoint_to_utf8((n1 - 0xd800) * 0x400 + (n2 - 0xdc00) + 0x10000)
-    else
-        return codepoint_to_utf8(n1)
-    end
-end
-
-
 function decoder:parse_string(str, i)
     local res = ""
     local j = i + 1
@@ -151,11 +139,19 @@ function decoder:parse_string(str, i)
             j = j + 1
             local c = str:sub(j, j)
             if c == "u" then
-                local hex = str:match("^[dD][89aAbB]%x%x\\u%x%x%x%x", j + 1)
-                                or str:match("^%x%x%x%x", j + 1)
-                                or decode_error(str, j - 1, "invalid unicode escape in string")
-                res = res .. parse_unicode_escape(hex)
-                j = j + #hex
+                local hex = str:match('^%x%x%x%x', j + 1)
+                    or decode_error(str, j - 1, 'invalid unicode escape in string')
+                local codepoint = assert(tonumber(hex, 16))
+                j = j + 4
+                if codepoint >= 0xd800 and codepoint <= 0xdbff then
+                    local low = str:match('^\\u([dD][cCdDeEfF]%x%x)', j + 1)
+                        or decode_error(str, j - 5, 'invalid unicode surrogate pair')
+                    codepoint = (codepoint - 0xd800) * 0x400 + assert(tonumber(low, 16)) - 0xdc00 + 0x10000
+                    j = j + 6
+                elseif codepoint >= 0xdc00 and codepoint <= 0xdfff then
+                    decode_error(str, j - 5, 'unexpected low unicode surrogate')
+                end
+                res = res .. codepoint_to_utf8(codepoint)
             else
                 if not escape_chars[c] then
                     decode_error(str, j - 1, "invalid escape char '" .. c .. "' in string")
@@ -179,8 +175,18 @@ end
 function decoder:parse_number(str, i)
     local x = next_char(str, i, delim_chars)
     local s = str:sub(i, x - 1)
+    -- Lua's tonumber also accepts hex, leading zeroes and incomplete fractions.
+    local integer, rest = s:match('^(-?%d+)(.*)$')
+    local digits = integer and integer:gsub('^-', '')
+    local valid = digits ~= nil and (#digits == 1 or digits:sub(1, 1) ~= '0')
+    if rest and rest:sub(1, 1) == '.' then
+        rest = rest:match('^%.%d+(.*)$')
+    end
+    if rest and rest ~= '' then
+        rest = rest:match('^[eE][+-]?%d+$') and '' or nil
+    end
     local n = tonumber(s)
-    if not n then
+    if not valid or rest ~= '' or not n then
         decode_error(str, i, "invalid number '" .. s .. "'")
     end
     return n, x
@@ -209,6 +215,7 @@ function decoder:parse_array(str, i)
         i = next_char(str, i, space_chars, true)
         -- Empty / end of array?
         if str:sub(i, i) == "]" then
+            if n > 1 then decode_error(str, i, 'trailing comma in array') end
             i = i + 1
             break
         end
@@ -229,12 +236,14 @@ end
 
 function decoder:parse_object(str, i)
     local res = {}
+    local first = true
     i = i + 1
     while 1 do
         local key, val
         i = next_char(str, i, space_chars, true)
         -- Empty / end of object?
         if str:sub(i, i) == "}" then
+            if not first then decode_error(str, i, 'trailing comma in object') end
             i = i + 1
             break
         end
@@ -253,6 +262,7 @@ function decoder:parse_object(str, i)
         val, i = self:parse(str, i)
         -- Set
         res[key] = val
+        first = false
         -- Next token
         i = next_char(str, i, space_chars, true)
         local chr = str:sub(i, i)
