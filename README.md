@@ -75,7 +75,7 @@ end
 | `hashlib` | Pure Lua hashing helpers (including chunked/partial hashing via `hashlib.partial`) plus `base64_encode` / `base64_decode`. |
 | `cjson` | Thin entry modules for Lua CJSON: `cjson` and `cjson.safe` (requires `bin/cjson.dll`). |
 | `copy` | `deep_copy` and `shallow_copy`. |
-| `fs` | Synchronous filesystem helpers backed by `fstool`: `exists`, `create_dir` / `mkdir`, `remove_dir`, `copy`, `get_size`. |
+| `fs` | Synchronous filesystem helpers backed by `fstool`: `exists`, `create_dir` / `mkdir`, `remove_dir`, `copy`, `get_size`, `get_stat`. See [binary provenance and limits](bin/fstool.md). |
 | `aiofs` | Async filesystem helpers built on `asyncio` and mpv async commands. |
 | `asyncio` | Coroutine-based async helpers: `run`, `async`, `await`, `try_await`, `create_task`, `sleep`, `wait`, `wait_for`, `gather`, `shield`, plus the mpv-backed `amp` event loop (`register_event`, `observe_property`, `add_finally`, ...). Direct imports add `queues.Queue`/`LifoQueue`, `locks.Lock`/`Event`/`Semaphore` and `timeouts.Timeout`/`timeout`/`timeout_at`. `Semaphore:with` acquires before starting a fresh body and releases on every exit. |
 | `mptl` | mpv tool layer. Currently wraps `mp.command_native` subprocess and async subprocess calls. |

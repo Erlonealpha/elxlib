@@ -63,6 +63,7 @@ Current groups:
 | [std](test_std/README.md) | Utilities, classes, reflection and exceptions | 124 |
 | [json](test_json/README.md) | Codec round trips, null placeholders and malformed input | 64 |
 | [hashlib](test_hashlib/README.md) | Digest vectors, streaming, HMAC, BLAKE and Base64 | 145 |
+| [fs](test_fs/README.md) | Subprocess operations, flags, failures and stat parsing | 83 |
 | [asyncio](test_asyncio/README.md) | Scheduling, synchronization and amp | 454 |
 
 Asyncio also provides an optional

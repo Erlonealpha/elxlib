@@ -75,7 +75,7 @@ end
 | `hashlib`     | 纯 Lua 哈希函数集合（支持 `hashlib.partial` 分块哈希），并导出 `base64_encode` / `base64_decode`。 |
 | `cjson`       | Lua CJSON 入口模块：`cjson` 与 `cjson.safe`（依赖 `bin/cjson.dll`）。 |
 | `copy`        | `deep_copy` 与 `shallow_copy`。 |
-| `fs`          | 基于 `fstool` 的同步文件系统工具：`exists`、`create_dir` / `mkdir`、`remove_dir`、`copy`、`get_size`。 |
+| `fs`          | 基于 `fstool` 的同步文件系统工具：`exists`、`create_dir` / `mkdir`、`remove_dir`、`copy`、`get_size`、`get_stat`。参见[二进制来源与限制](bin/fstool.md)。 |
 | `aiofs`       | 基于 `asyncio` 与 mpv async command 的异步文件系统工具。 |
 | `asyncio`     | 协程式异步工具：`run`、`async`、`await`、`try_await`、`create_task`、`sleep`、`wait`、`wait_for`、`gather`、`shield`，以及面向 mpv 的 `amp` 事件循环（`register_event`、`observe_property`、`add_finally` 等）。直接导入子模块可使用 `queues.Queue`/`LifoQueue`、`locks.Lock`/`Event`/`Semaphore` 和 `timeouts.Timeout`/`timeout`/`timeout_at`。`Semaphore:with` 在启动新函数体前获取许可，并在成功、失败或取消后归还。 |
 | `mptl`        | mpv 工具层，目前封装 `mp.command_native` subprocess 与异步 subprocess。 |
