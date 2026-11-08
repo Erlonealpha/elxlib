@@ -56,8 +56,14 @@ Discovery is sorted and recursive only through directories beginning with
 `test`; filenames must match `test_*.lua`. Store nondiscovered fixtures in
 directories such as `fixtures` or `real_host`. Tests under `vendor` are excluded.
 
-Current coverage: [asyncio, amp and std exception plumbing](test_asyncio/README.md).
-The offline suite has **479 assertions**. Asyncio also provides an optional
+Current groups:
+
+| Group | Coverage | Assertions |
+| --- | --- | --- |
+| [std](test_std/README.md) | Utilities, classes, reflection and exceptions | 124 |
+| [asyncio](test_asyncio/README.md) | Scheduling, synchronization and amp | 454 |
+
+Asyncio also provides an optional
 headless real-host check:
 
 ```sh
@@ -72,6 +78,5 @@ direct dependency CLI, group/file filters, help, an absolute entry from another
 directory, invalid/empty filters and missing-dependency diagnostics. Use isolated
 fixtures to confirm that a new group is discovered and fixtures/vendor are skipped.
 
-The layout migration keeps **479 assertions passing** through both entries,
-with **0 analyzer errors and 0 warnings in project test code**. The project has
-55 existing warnings outside these tests. The dependency gitlink is unchanged.
+Run `luajit test/run.lua` for the current combined assertion total. Each group
+records its validation baseline in its README. The dependency gitlink is unchanged.

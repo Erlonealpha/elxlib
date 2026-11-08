@@ -2,7 +2,6 @@
 -- the xpcall/try wrappers that asyncio error handling is built on.
 
 local F = require("mpv_luatest.framework")
-require("test_asyncio.support")
 
 local std = require("elxlibs.std")
 

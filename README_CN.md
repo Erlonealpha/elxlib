@@ -149,7 +149,7 @@ end))
 
 ## 测试
 
-`test/run.lua` 使用 [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) 子模块自动发现 `test/test_<group>/test_*.lua`。当前 `test_asyncio` 分组覆盖 asyncio 公开 API、取消和生命周期回归、amp 适配器及 `std` 异常。默认套件不需要 mpv，asyncio 分组为 `mp` 打桩，直接用 LuaJIT 运行：
+`test/run.lua` 使用 [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) 子模块自动发现 `test/test_<group>/test_*.lua`。分组覆盖 std 工具、类和异常，以及 asyncio 公开 API、取消和生命周期回归、amp 适配器。默认套件不需要 mpv，asyncio 分组为 `mp` 打桩，直接用 LuaJIT 运行：
 
 ```sh
 git submodule update --init --recursive

@@ -34,6 +34,10 @@ end
 ---@param maxsplit? number
 ---@return string[]
 function M.split(str, pattern, maxsplit)
+    if pattern == '' then
+        exception.raise(exception.ValueError('separator must not be empty'))
+    end
+    if maxsplit == 0 then return {str} end
     local function escape_pattern(p)
         return p:gsub("([^%w])", "%%%1")
     end
@@ -74,7 +78,7 @@ end
 --     end
 -- end
 
----@param str string
+---@param str string?
 ---@return string[]
 function M.comma_split(str)
     if not str then
@@ -83,7 +87,10 @@ function M.comma_split(str)
     if type(str) ~= "string" then
         exception.raise(exception.TypeError("Expected string, got " .. type(str)))
     end
-    return str:match("^%s*$") and {} or M.split(str, "%s*,%s*")
+    if str:match('^%s*$') then return {} end
+    local parts = M.split(str, ',')
+    for i, part in ipairs(parts) do parts[i] = M.trim(part) end
+    return parts
 end
 
 function M.trim(str)

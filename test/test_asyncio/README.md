@@ -1,6 +1,7 @@
 # elxlib asyncio test-suite
 
-Functional and regression tests for `elxlibs/asyncio` and its `std` exception plumbing.
+Functional and regression tests for `elxlibs/asyncio`. The separate
+[std group](../test_std/README.md) owns exception plumbing tests.
 They use [mpv-luatest](../vendor/mpv-luatest) for discovery, assertions and
 reporting, and run on **bare LuaJIT** with a project-specific `mp` stub.
 
@@ -13,7 +14,7 @@ luajit test/run.lua asyncio    # this group
 luajit test/run.lua asyncio/locks # this group's lock tests
 luajit test/run.lua amp        # amp adapters and shutdown tests
 luajit test/run.lua -v         # include files, sections and successful tests
-luajit test/run.lua exceptions # std exception tests
+luajit test/run.lua std/exceptions # std exception tests
 ```
 
 The shared entry in `test/run.lua` resolves the project and dependency relative to itself, so an absolute
@@ -39,7 +40,6 @@ luajit test/vendor/mpv-luatest/run.lua --test-dir test --bootstrap test/bootstra
 | `support.lua` | Real-clock loop, bounded task runner and module reload helpers |
 | `amp_stub.lua` | Project `mp` stub: scripted event payloads, raw API call recording, clock, watchdog and logs |
 | `test_core.lua` | `await`/`try_await`/`gather`, `Queue`, `Lock`, `shield` |
-| `test_exceptions.lua` | `raise` levels, `__cause` chaining, `traceback`, `xpcall`/`try` |
 | `test_cancellation.lua` | `cancelling`/`uncancel`, cancel before the first step, cancel while awaiting |
 | `test_timeouts.lua` | `wait_for`, `Timeout:with`, `TimeoutError` conversion |
 | `test_amp_shutdown.lua` | amp loop shutdown + `finally` callbacks (one fresh module tree per case) |
@@ -142,7 +142,7 @@ luajit test/vendor/mpv-luatest/run.lua --root test/vendor/mpv-luatest/examples/p
 
 Validated on 2026-11-08 with Windows and LuaJIT 2.1.1748459687:
 
-- Both project and direct dependency entries: **479 assertions passed**.
+- Asyncio group through both entries: **454 assertions passed**.
 - Exception filter: **25 assertions passed**; help, absolute/local entry paths,
   empty matches, invalid options and missing dependency diagnostics passed.
 - Pinned framework `66e921ca2da4ae79cf7b2c88eb43621ebd417830`: **41 assertions

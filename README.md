@@ -149,7 +149,7 @@ end))
 
 ## Tests
 
-`test/run.lua` uses the [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) submodule to discover `test/test_<group>/test_*.lua`. The current `test_asyncio` group covers asyncio public APIs, cancellation/lifecycle regressions, amp adapters and `std` exceptions. The default suite runs on bare LuaJIT; asyncio installs a stubbed `mp` API:
+`test/run.lua` uses the [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) submodule to discover `test/test_<group>/test_*.lua`. Groups cover std utilities/classes/exceptions and asyncio public APIs, cancellation/lifecycle regressions and amp adapters. The default suite runs on bare LuaJIT; asyncio installs a stubbed `mp` API:
 
 ```sh
 git submodule update --init --recursive
