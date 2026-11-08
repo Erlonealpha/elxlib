@@ -76,7 +76,7 @@ end
 | `cjson` | Thin entry modules for Lua CJSON: `cjson` and `cjson.safe` (requires `bin/cjson.dll`). |
 | `copy` | `deep_copy` and `shallow_copy`. |
 | `fs` | Synchronous filesystem helpers backed by `fstool`: `exists`, `create_dir` / `mkdir`, `remove_dir`, `copy`, `get_size`, `get_stat`. See [binary provenance and limits](bin/fstool.md). |
-| `aiofs` | Async filesystem helpers built on `asyncio` and mpv async commands. |
+| `aiofs` | Filesystem helpers returning lazy asyncio coroutines. Await results with `ok`, `result` and `error`; cancellation aborts the owned mpv async command. Includes `get_stat`. |
 | `asyncio` | Coroutine-based async helpers: `run`, `async`, `await`, `try_await`, `create_task`, `sleep`, `wait`, `wait_for`, `gather`, `shield`, plus the mpv-backed `amp` event loop (`register_event`, `observe_property`, `add_finally`, ...). Direct imports add `queues.Queue`/`LifoQueue`, `locks.Lock`/`Event`/`Semaphore` and `timeouts.Timeout`/`timeout`/`timeout_at`. `Semaphore:with` acquires before starting a fresh body and releases on every exit. |
 | `mptl` | mpv tool layer. Currently wraps `mp.command_native` subprocess and async subprocess calls. |
 | `lockfile` | Cross-process lock file wrapper. Loads a platform implementation; the Windows backend uses the Win32 API. |
@@ -149,7 +149,7 @@ end))
 
 ## Tests
 
-`test/run.lua` uses the [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) submodule to discover `test/test_<group>/test_*.lua`. Groups cover std utilities/classes/exceptions and asyncio public APIs, cancellation/lifecycle regressions and amp adapters. The default suite runs on bare LuaJIT; asyncio installs a stubbed `mp` API:
+`test/run.lua` uses the [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) submodule to discover `test/test_<group>/test_*.lua`. Groups cover std, json, hashlib, fs, aiofs and asyncio, including cancellation/lifecycle regressions and host adapters. The default suite runs on bare LuaJIT with isolated stubbed host APIs:
 
 ```sh
 git submodule update --init --recursive

@@ -76,7 +76,7 @@ end
 | `cjson`       | Lua CJSON 入口模块：`cjson` 与 `cjson.safe`（依赖 `bin/cjson.dll`）。 |
 | `copy`        | `deep_copy` 与 `shallow_copy`。 |
 | `fs`          | 基于 `fstool` 的同步文件系统工具：`exists`、`create_dir` / `mkdir`、`remove_dir`、`copy`、`get_size`、`get_stat`。参见[二进制来源与限制](bin/fstool.md)。 |
-| `aiofs`       | 基于 `asyncio` 与 mpv async command 的异步文件系统工具。 |
+| `aiofs`       | 返回惰性 asyncio 协程的文件系统工具，包含 `get_stat`。await 返回 `ok`、`result`、`error`；取消任务会中止其所属的 mpv 异步命令。 |
 | `asyncio`     | 协程式异步工具：`run`、`async`、`await`、`try_await`、`create_task`、`sleep`、`wait`、`wait_for`、`gather`、`shield`，以及面向 mpv 的 `amp` 事件循环（`register_event`、`observe_property`、`add_finally` 等）。直接导入子模块可使用 `queues.Queue`/`LifoQueue`、`locks.Lock`/`Event`/`Semaphore` 和 `timeouts.Timeout`/`timeout`/`timeout_at`。`Semaphore:with` 在启动新函数体前获取许可，并在成功、失败或取消后归还。 |
 | `mptl`        | mpv 工具层，目前封装 `mp.command_native` subprocess 与异步 subprocess。 |
 | `lockfile`    | 跨进程锁文件封装，按平台加载实现，Windows 下基于 Win32 API。 |
@@ -149,7 +149,7 @@ end))
 
 ## 测试
 
-`test/run.lua` 使用 [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) 子模块自动发现 `test/test_<group>/test_*.lua`。分组覆盖 std 工具、类和异常，以及 asyncio 公开 API、取消和生命周期回归、amp 适配器。默认套件不需要 mpv，asyncio 分组为 `mp` 打桩，直接用 LuaJIT 运行：
+`test/run.lua` 使用 [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) 子模块自动发现 `test/test_<group>/test_*.lua`。分组覆盖 std、json、hashlib、fs、aiofs 和 asyncio，以及取消和生命周期回归、宿主适配器。默认套件以隔离的宿主桩运行，不需要 mpv，直接使用 LuaJIT：
 
 ```sh
 git submodule update --init --recursive

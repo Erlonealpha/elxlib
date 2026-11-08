@@ -64,13 +64,15 @@ Current groups:
 | [json](test_json/README.md) | Codec round trips, null placeholders and malformed input | 64 |
 | [hashlib](test_hashlib/README.md) | Digest vectors, streaming, HMAC, BLAKE and Base64 | 145 |
 | [fs](test_fs/README.md) | Subprocess operations, flags, failures and stat parsing | 83 |
+| [aiofs](test_aiofs/README.md) | Lazy operations, failures, cancellation and callback lifecycle | 104 |
 | [asyncio](test_asyncio/README.md) | Scheduling, synchronization and amp | 454 |
 
-Asyncio also provides an optional
-headless real-host check:
+Asyncio, fs and aiofs also provide optional isolated headless real-host checks:
 
 ```sh
 python test/test_asyncio/real_host.py
+python test/test_fs/real_host.py --mpv <binary>
+python test/test_aiofs/real_host.py --mpv <binary>
 ```
 
 ## Validation
