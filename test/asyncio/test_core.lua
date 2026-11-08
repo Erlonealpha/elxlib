@@ -14,10 +14,10 @@ F.section("core: task / await / gather")
 F.test("await() keeps every return value of the task", function()
     ---@type { n: integer, [1]: string, [2]: string, [3]: string }?
     local got
-    asyncio.run(function()
+    support.run(function()
         local t = asyncio.create_task(function() return "a", "b", "c" end)
         got = table.pack(asyncio.await(t))
-    end, support.real_loop(asyncio))
+    end)
     got = assert(got, "task must return packed values")
     F.eq(got.n, 3, "number of returned values")
     F.eq(got[1] .. got[2] .. got[3], "abc", "returned values in order")
@@ -25,28 +25,28 @@ end)
 
 F.test("try_await() reports (true, value...) / (false, err)", function()
     local ok, err
-    asyncio.run(function()
+    support.run(function()
         ok = asyncio.try_await(asyncio.sleep(0))
         local t = asyncio.create_task(function() error(std.RuntimeError("boom")) end)
         local _, _err = asyncio.try_await(t)
         err = _err
-    end, support.real_loop(asyncio))
+    end)
     F.eq(ok, true, "sleep(0) succeeds")
     F.contains(err, "RuntimeError", "failed task yields the exception")
 end)
 
 F.test("await(nil) yields the empty value", function()
     local n
-    asyncio.run(function()
+    support.run(function()
         n = select("#", asyncio.await())
-    end, support.real_loop(asyncio))
+    end)
     F.eq(n, 0, "no values returned")
 end)
 
 F.test("gather() resolves with every child result", function()
     ---@type integer[]?
     local results
-    asyncio.run(function()
+    support.run(function()
         results = asyncio.await(asyncio.gather({
             asyncio.create_task(function()
                 asyncio.await(asyncio.sleep(0.01))
@@ -54,7 +54,7 @@ F.test("gather() resolves with every child result", function()
             end),
             asyncio.create_task(function() return 2 end),
         }))
-    end, support.real_loop(asyncio))
+    end)
     results = assert(results, "gather must return child results")
     F.eq(results[1], 1, "first child")
     F.eq(results[2], 2, "second child")
@@ -64,14 +64,14 @@ F.test("gather() completes when a child is already done (regression)", function(
     local done_before_await
     ---@type { result: string }?
     local first
-    asyncio.run(function()
+    support.run(function()
         local loop = asyncio.loops.get_running_loop()
         local f = loop:create_future()
         f:set_result("already-done")
         local g = asyncio.gather({f}, true)
         done_before_await = g:done()
         first = (asyncio.await(g))[1]
-    end, support.real_loop(asyncio))
+    end)
     F.eq(done_before_await, true, "gathering future is finished immediately")
     first = assert(first, "gather must include the completed child")
     F.eq(first.result, "already-done", "child result is collected")
@@ -83,7 +83,7 @@ F.test("Queue: put/get, maxsize back-pressure and join()", function()
     ---@type string[]?
     local items
     local emptied, unfinished
-    asyncio.run(function()
+    support.run(function()
         local q = queues.Queue(2)
         items = {}
         local consumer = asyncio.create_task(function()
@@ -101,7 +101,7 @@ F.test("Queue: put/get, maxsize back-pressure and join()", function()
         asyncio.await(q:join())
         emptied = q:empty()
         unfinished = q._unfinished_tasks
-    end, support.real_loop(asyncio))
+    end)
     F.eq(table.concat(assert(items), ","), "item1,item2,item3", "items arrive in order")
     F.eq(emptied, true, "queue is empty at the end")
     F.eq(unfinished, 0, "all tasks marked done")
@@ -112,7 +112,7 @@ F.section("core: locks and shield")
 F.test("Lock serializes its holders", function()
     ---@type string[]?
     local order
-    asyncio.run(function()
+    support.run(function()
         local lock = locks.Lock()
         order = {}
         local function worker(name)
@@ -125,13 +125,13 @@ F.test("Lock serializes its holders", function()
             end)
         end
         asyncio.await(asyncio.gather({worker("A"), worker("B")}))
-    end, support.real_loop(asyncio))
+    end)
     F.eq(table.concat(assert(order), " "), "A-in A-out B-in B-out", "no interleaving")
 end)
 
 F.test("shield() protects the inner future from outer cancellation", function()
     local outer_cancelled, inner_result
-    asyncio.run(function()
+    support.run(function()
         local t = asyncio.create_task(function()
             asyncio.await(asyncio.sleep(0.02))
             return "shielded"
@@ -140,7 +140,7 @@ F.test("shield() protects the inner future from outer cancellation", function()
         s:cancel()
         outer_cancelled = s:cancelled()
         inner_result = asyncio.await(t)
-    end, support.real_loop(asyncio))
+    end)
     F.eq(outer_cancelled, true, "outer future is cancelled")
     F.eq(inner_result, "shielded", "inner future still completes")
 end)

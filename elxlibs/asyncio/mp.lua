@@ -1,9 +1,10 @@
+---@namespace asyncio
 --- Override defaults.lua defines to handle events in asyncio eventloop.
 
-local mp = require("mp")
-local std = require('elxlibs.std')
-local asyncio = require('elxlibs.asyncio')
-local class = require('elxlibs.std.class')
+local mp = require 'mp'
+local std = require 'elxlibs.std'
+local asyncio = require 'elxlibs.asyncio'
+local class = require 'elxlibs.std.class'
 
 local type = type
 local table = table
@@ -16,13 +17,12 @@ local raise = std.raise
 local xpcall = std.xpcall
 local tonumber = tonumber
 local tostring = tostring
-local async = asyncio.async
 local traceback = std.traceback
 local setmetatable = setmetatable
 
 local await = asyncio.await
 
----@class asyncio.amp
+---@class amp
 local amp = {}
 
 
@@ -35,7 +35,7 @@ local dispatch_key_bindings = {}
 local message_id = 0
 local function reserve_binding()
     message_id = message_id + 1
-    return "__keybinding" .. tostring(message_id)
+    return '__keybinding' .. tostring(message_id)
 end
 
 local function dispatch_key_binding(name, state, key_name, key_text, scale, arg)
@@ -45,10 +45,10 @@ local function dispatch_key_binding(name, state, key_name, key_text, scale, arg)
     end
 end
 
--- "Old", deprecated API
+-- 'Old', deprecated API
 
 -- each script has its own section, so that they don't conflict
-local default_section = "input_dispatch_" .. mp.script_name
+local default_section = 'input_dispatch_' .. mp.script_name
 
 -- Set the list of key bindings. These will override the user's bindings, so
 -- you should use this sparingly.
@@ -59,52 +59,52 @@ local default_section = "input_dispatch_" .. mp.script_name
 --
 -- list is an array of key bindings, where each entry is an array as follow:
 --      {key, callback_press, callback_down, callback_up}
--- key is the key string as used in input.conf, like "ctrl+a"
+-- key is the key string as used in input.conf, like 'ctrl+a'
 --
 -- callback can be a string too, in which case the following will be added like
--- an input.conf line: key .. " " .. callback
+-- an input.conf line: key .. ' ' .. callback
 -- (And callback_down is ignored.)
 ---@param list [string, fun()?, fun()?, fun()?][] <key, cb, cb_down, cb_up>[]
 ---@param section string?
 ---@param flags define_section_flags?
 function amp.set_key_bindings(list, section, flags)
-    local cfg = ""
+    local cfg = ''
     for i = 1, #list do
         local entry = list[i]
         local key = entry[1]
         local cb = entry[2]
         local cb_down = entry[3]
         local cb_up = entry[4]
-        if type(cb) ~= "string" then
+        if type(cb) ~= 'string' then
             local mangle = reserve_binding()
             dispatch_key_bindings[mangle] = function(_, state)
                 local event = state:sub(1, 1)
-                local is_mouse = state:sub(2, 2) == "m"
-                local def = (is_mouse and "u") or "d"
-                if event == "r" then
+                local is_mouse = state:sub(2, 2) == 'm'
+                local def = (is_mouse and 'u') or 'd'
+                if event == 'r' then
                     return
                 end
-                if event == "p" and cb then
+                if event == 'p' and cb then
                     cb()
-                elseif event == "d" and cb_down then
+                elseif event == 'd' and cb_down then
                     cb_down()
-                elseif event == "u" and cb_up then
+                elseif event == 'u' and cb_up then
                     cb_up()
                 elseif event == def and cb then
                     cb()
                 end
             end
-            cfg = cfg .. key .. " script-binding " ..
-                  mp.script_name .. "/" .. mangle .. "\n"
+            cfg = cfg .. key .. ' script-binding ' ..
+                  mp.script_name .. '/' .. mangle .. '\n'
         else
-            cfg = cfg .. key .. " " .. cb .. "\n"
+            cfg = cfg .. key .. ' ' .. cb .. '\n'
         end
     end
     mp.input_define_section(section or default_section, cfg, flags)
 end
 
 
--- "Newer" and more convenient API
+-- 'Newer' and more convenient API
 
 local key_bindings = {}
 local key_binding_counter = 0
@@ -120,11 +120,11 @@ function amp.flush_keybindings()
         local section, flags
         local def = i == 1
         if def then
-            section = "input_" .. mp.script_name
-            flags = "default"
+            section = 'input_' .. mp.script_name
+            flags = 'default'
         else
-            section = "input_forced_" .. mp.script_name
-            flags = "force"
+            section = 'input_forced_' .. mp.script_name
+            flags = 'force'
         end
         local bindings = {}
         for _, v in pairs(key_bindings) do
@@ -135,12 +135,12 @@ function amp.flush_keybindings()
         table.sort(bindings, function(a, b)
             return a.priority < b.priority
         end)
-        local cfg = ""
+        local cfg = ''
         for _, v in ipairs(bindings) do
-            cfg = cfg .. v.bind .. "\n"
+            cfg = cfg .. v.bind .. '\n'
         end
         mp.input_define_section(section, cfg, flags)
-        mp.input_enable_section(section, "allow-hide-cursor+allow-vo-dragging")
+        mp.input_enable_section(section, 'allow-hide-cursor+allow-vo-dragging')
     end
 end
 
@@ -156,7 +156,7 @@ end
 ---     rp: (string|table)?
 --- ):void
 local function add_binding(attrs, key, name, fn, rp)
-    if type(name) ~= "string" and name ~= nil then
+    if type(name) ~= 'string' and name ~= nil then
         ---@diagnostic disable-next-line: assign-type-mismatch
         rp = fn
         ---@diagnostic disable-next-line: assign-type-mismatch
@@ -169,34 +169,34 @@ local function add_binding(attrs, key, name, fn, rp)
     ---@diagnostic disable-next-line: cast-type-mismatch
     ---@cast rp (string|table)?
 
-    rp = rp or ""
+    rp = rp or ''
     if name == nil then
         name = reserve_binding()
     end
-    local repeatable = rp == "repeatable" or rp["repeatable"]
-    local scalable = rp == "scalable" or rp["scalable"]
-    if rp["forced"] then
+    local repeatable = rp == 'repeatable' or rp['repeatable']
+    local scalable = rp == 'scalable' or rp['scalable']
+    if rp['forced'] then
         attrs.forced = true
     end
     local key_cb, msg_cb
     if not fn then
         fn = function() end
     end
-    if rp["complex"] then
+    if rp['complex'] then
         local key_states = {
-            ["u"] = "up",
-            ["d"] = "down",
-            ["r"] = "repeat",
-            ["p"] = "press",
+            ['u'] = 'up',
+            ['d'] = 'down',
+            ['r'] = 'repeat',
+            ['p'] = 'press',
         }
         key_cb = function(_, state, key_name, key_text, scale, arg)
-            if key_text == "" then
+            if key_text == '' then
                 key_text = nil
             end
             fn({
-                event = key_states[state:sub(1, 1)] or "unknown",
-                is_mouse = state:sub(2, 2) == "m",
-                canceled = state:sub(3, 3) == "c",
+                event = key_states[state:sub(1, 1)] or 'unknown',
+                is_mouse = state:sub(2, 2) == 'm',
+                canceled = state:sub(3, 3) == 'c',
                 key_name = key_name,
                 key_text = key_text,
                 scale = tonumber(scale),
@@ -204,31 +204,31 @@ local function add_binding(attrs, key, name, fn, rp)
             })
         end
         msg_cb = function()
-            fn({event = "press", is_mouse = false})
+            fn({event = 'press', is_mouse = false})
         end
     else
         key_cb = function(_, state)
             -- Emulate the same semantics as input.c uses for most bindings:
-            -- For keyboard, "down" runs the command, "up" does nothing;
-            -- for mouse, "down" does nothing, "up" runs the command.
+            -- For keyboard, 'down' runs the command, 'up' does nothing;
+            -- for mouse, 'down' does nothing, 'up' runs the command.
             -- Also, key repeat triggers the binding again.
             local event = state:sub(1, 1)
-            local is_mouse = state:sub(2, 2) == "m"
-            local canceled = state:sub(3, 3) == "c"
-            if canceled or event == "r" and not repeatable then
+            local is_mouse = state:sub(2, 2) == 'm'
+            local canceled = state:sub(3, 3) == 'c'
+            if canceled or event == 'r' and not repeatable then
                 return
             end
-            if is_mouse and (event == "u" or event == "p") then
+            if is_mouse and (event == 'u' or event == 'p') then
                 fn()
-            elseif not is_mouse and (event == "d" or event == "r" or event == "p") then
+            elseif not is_mouse and (event == 'd' or event == 'r' or event == 'p') then
                 fn()
             end
         end
         msg_cb = fn
     end
-    local prefix = scalable and "" or " nonscalable"
+    local prefix = scalable and '' or ' nonscalable'
     if key and #key > 0 then
-        attrs.bind = key .. prefix .. " script-binding " .. mp.script_name .. "/" .. name
+        attrs.bind = key .. prefix .. ' script-binding ' .. mp.script_name .. '/' .. name
     end
     attrs.name = name
     -- new bindings override old ones (but do not overwrite them)
@@ -344,10 +344,10 @@ end
 
 -- Return the timer that expires next.
 ---@generic T
----@param scheduled? asyncio.TimerHandle[]
+---@param scheduled? TimerHandle[]
 ---@return mp_timer|number?
 ---@overload fun():mp_timer?
----@overload fun(scheduled: asyncio.TimerHandle[]):mp_timer|number?
+---@overload fun(scheduled: TimerHandle[]):mp_timer|number?
 local function get_next_timer(scheduled)
     ---@type mp_timer?
     local best = nil
@@ -386,7 +386,7 @@ end
 -- Return: time>0 in seconds till the next due timer, 0 if there are due timers
 --         (aborted to avoid infinite loop), or nil if no timers
 ---@generic T
----@param scheduled asyncio.TimerHandle[]
+---@param scheduled TimerHandle[]
 ---@return number? wait
 ---@return fun()[]? cbs
 local function process_timers(scheduled)
@@ -396,9 +396,9 @@ local function process_timers(scheduled)
     while true do
         local timer = get_next_timer(scheduled)
         if not timer then
-            return
+            return nil, cbs
         end
-        if type(timer) == "number" then
+        if type(timer) == 'number' then
             -- Scheduled asyncio callbacks store an absolute deadline, while
             -- mp.wait_event expects a relative timeout.
             return math.max(0, timer - mp.get_time()), cbs
@@ -455,10 +455,10 @@ local properties = {}
 ---@param name N
 ---@param t observe_property_type
 ---@param cb fun(name:N, data:any):void
----@overload fun(name:N, t:"native", cb:fun(name:N, data:table|string|number|boolean):void)
----@overload fun(name:N, t:"number", cb:fun(name:N, data:number|int):void)
----@overload fun(name:N, t:"string", cb:fun(name:N, data:string):void)
----@overload fun(name:N, t:"bool",   cb:fun(name:N, data:boolean):void)
+---@overload fun(name:N, t:'native', cb:fun(name:N, data:table|string|number|boolean):void)
+---@overload fun(name:N, t:'number', cb:fun(name:N, data:number|int):void)
+---@overload fun(name:N, t:'string', cb:fun(name:N, data:string):void)
+---@overload fun(name:N, t:'bool',   cb:fun(name:N, data:boolean):void)
 function amp.observe_property(name, t, cb)
     local id = property_id + 1
     property_id = id
@@ -490,7 +490,7 @@ local event_handlers = {}
 
 ---@alias mp_ev_base               {id:int, event:string, error:string?}
 ---@alias mp_ev_start_file         mp_ev_base & {playlist_entry_id: int}
----@alias mp_ev_end_file           mp_ev_base & {reason: "eof"|"stop"|"quit"|"error"|"redirect"|"unknown",
+---@alias mp_ev_end_file           mp_ev_base & {reason: 'eof'|'stop'|'quit'|'error'|'redirect'|'unknown',
 ---                                 playlist_entry_id: int,
 ---                                 playlist_insert_id: int?,
 ---                                 playlist_insert_num_entries: table[]?}
@@ -508,19 +508,19 @@ local event_handlers = {}
 
 ---@param name string
 ---@param cb fun(ev:table)
----@overload fun(name:"start-file",          cb:fun(ev:mp_ev_start_file))
----@overload fun(name:"end-file",            cb:fun(ev:mp_ev_end_file))
----@overload fun(name:"file-loaded",         cb:fun(ev:mp_ev_file_loaded))
----@overload fun(name:"seek",                cb:fun(ev:mp_ev_seek))
----@overload fun(name:"playback-restart",    cb:fun(ev:mp_ev_playback_restart))
----@overload fun(name:"shutdown",            cb:fun(ev:mp_ev_shutdown))
----@overload fun(name:"log-message",         cb:fun(ev:mp_ev_log_message))
----@overload fun(name:"hook",                cb:fun(ev:mp_ev_hook))
----@overload fun(name:"command-reply",       cb:fun(ev:mp_ev_command_reply))
----@overload fun(name:"client-message",      cb:fun(ev:mp_ev_client_message))
----@overload fun(name:"video-reconfig",      cb:fun(ev:mp_ev_video_reconfig))
----@overload fun(name:"audio-reconfig",      cb:fun(ev:mp_ev_audio_reconfig))
----@overload fun(name:"property-change",     cb:fun(ev:mp_ev_property_change))
+---@overload fun(name:'start-file',          cb:fun(ev:mp_ev_start_file))
+---@overload fun(name:'end-file',            cb:fun(ev:mp_ev_end_file))
+---@overload fun(name:'file-loaded',         cb:fun(ev:mp_ev_file_loaded))
+---@overload fun(name:'seek',                cb:fun(ev:mp_ev_seek))
+---@overload fun(name:'playback-restart',    cb:fun(ev:mp_ev_playback_restart))
+---@overload fun(name:'shutdown',            cb:fun(ev:mp_ev_shutdown))
+---@overload fun(name:'log-message',         cb:fun(ev:mp_ev_log_message))
+---@overload fun(name:'hook',                cb:fun(ev:mp_ev_hook))
+---@overload fun(name:'command-reply',       cb:fun(ev:mp_ev_command_reply))
+---@overload fun(name:'client-message',      cb:fun(ev:mp_ev_client_message))
+---@overload fun(name:'video-reconfig',      cb:fun(ev:mp_ev_video_reconfig))
+---@overload fun(name:'audio-reconfig',      cb:fun(ev:mp_ev_audio_reconfig))
+---@overload fun(name:'property-change',     cb:fun(ev:mp_ev_property_change))
 function amp.register_event(name, cb)
     local list = event_handlers[name]
     if not list then
@@ -559,8 +559,8 @@ function amp.unregister_event(cb)
 end
 
 -- default handlers
-amp.register_event("client-message", message_dispatch)
-amp.register_event("property-change", property_change)
+amp.register_event('client-message', message_dispatch)
+amp.register_event('property-change', property_change)
 
 -- called before the event loop goes back to sleep
 local idle_handlers = {}
@@ -581,8 +581,8 @@ function amp.unregister_idle(cb)
     idle_handlers = new
 end
 
--- sent by "script-binding"
-amp.register_script_message("key-binding", dispatch_key_binding)
+-- sent by 'script-binding'
+amp.register_script_message('key-binding', dispatch_key_binding)
 
 
 amp.register_idle(amp.flush_keybindings)
@@ -596,7 +596,7 @@ hook_mt.__index = hook_mt
 
 function hook_mt.cont(t)
     if t._id == nil then
-        mp.msg.error("hook already continued")
+        mp.msg.error('hook already continued')
     else
         mp.raw_hook_continue(t._id)
         t._id = nil
@@ -607,7 +607,7 @@ function hook_mt.defer(t)
     t._defer = true
 end
 
-amp.register_event("hook", function(ev)
+amp.register_event('hook', function(ev)
     local fn = hook_table[tonumber(ev.id)]
     local hookobj = {
         _id = ev.hook_id,
@@ -653,7 +653,7 @@ end)
     on_after_end_file:
         在 end-file 事件发生后运行。可用于在文件执行完毕后清除属性更改。
 ]]
----@alias mp_hooks "on_load"|"on_load_fail"|"on_preloaded"|"on_unload"|"on_before_start_file"|"on_after_end_file"
+---@alias mp_hooks 'on_load'|'on_load_fail'|'on_preloaded'|'on_unload'|'on_before_start_file'|'on_after_end_file'
 
 ---@param name mp_hooks
 ---@param pri int
@@ -690,7 +690,7 @@ function amp.command_native_async(node, cb)
     return t
 end
 
-amp.register_event("command-reply", function(ev)
+amp.register_event('command-reply', function(ev)
     local id = tonumber(ev.id)
     local t = async_call_table[id]
     local cb = t.cb
@@ -711,9 +711,9 @@ function amp.abort_async_command(t)
 end
 
 
----@class asyncio.EventLoop_mp : asyncio.EventLoop
----@overload fun():asyncio.EventLoop_mp
-local EventLoop_mp = class.new('asyncio.EventLoop_mp', {asyncio.loops.EventLoop})
+---@class EventLoop_mp : EventLoop
+---@overload fun():EventLoop_mp
+local EventLoop_mp = class.new('EventLoop_mp', asyncio.loops.EventLoop)
 
 amp.EventLoop_mp = EventLoop_mp
 
@@ -749,14 +749,15 @@ end
 local loop = EventLoop_mp()
 local _stoping = false
 local task_id = 0
----@type table<int, asyncio.Task<nil>>
-local events_tasks = setmetatable({}, {__mode = 'v'})
+---@type table<int, Task<nil>>
+-- Keep failed tasks alive until shutdown/finally drains their exceptions.
+local events_tasks = {}
 ---@type int[]
 local err_tasks = {}
----@type fun()[]
+---@type (function|thread|Coroutine<any>)[]
 local finally_funcs = {}
 local finally_called = false
----@type asyncio.Task<any>[]?
+---@type Task<any>[]?
 local finally_tasks = nil
 ---@type string[]
 local finally_errs = {}
@@ -820,7 +821,7 @@ local function amp_event_loop()
                 wait = 1e20
             end
             local idle = true
-            if #loop._ready ~= 0 then
+            if #loop._ready ~= 0 or #err_tasks > 0 then
                 wait = 0
             elseif _stoping then
                 -- keep pumping mpv events while the finally callbacks run, but
@@ -864,7 +865,7 @@ local function amp_event_loop()
             end
 
             local e = mp.wait_event(wait)
-            if e.event ~= "none" then
+            if e.event ~= 'none' then
                 local handlers = event_handlers[e.event]
                 if handlers then
                     -- debug_msg('create_task events', #handlers)
@@ -965,20 +966,21 @@ _G.mp_event_loop = function ()
             '\nDuring handling of the above exception, another exception occurred:\n'), 0)
     end
 end
+_G.mp_event_loop_wrap = true
 
-amp.register_event("shutdown", function()
+amp.register_event('shutdown', function()
     -- debug_msg('shutdown recv')
     _stoping = true
 end)
 
 --- The callback runs as a task on the event loop while mpv events keep being
 --- pumped, so it may be a plain function or an async function/coroutine.
----@param fn fun()
+---@param fn function|thread|Coroutine<any>
 function amp.add_finally(fn)
     table.insert(finally_funcs, fn)
 end
 
----@param fn fun()
+---@param fn function|thread|Coroutine<any>
 function amp.remove_finally(fn)
     for i, func in ipairs(finally_funcs) do
         if fn == func then
@@ -989,7 +991,7 @@ function amp.remove_finally(fn)
 end
 
 -- TODO
--- ---@class asyncio.amp._sync
+-- ---@class amp._sync
 -- local _copy_fields = {}
 -- _copy_fields.set_key_bindings = amp.set_key_bindings
 -- _copy_fields.flush_keybindings = amp.flush_keybindings
@@ -1011,7 +1013,7 @@ end
 -- _copy_fields.command_native_async = amp.command_native_async
 -- _copy_fields.abort_async_command = amp.abort_async_command
 
--- ---@class asyncio.amp.sync: asyncio.amp._sync
+-- ---@class amp.sync: amp._sync
 -- amp.sync = setmetatable({}, {
 --     __index = function (t, key)
 --     end
@@ -1027,29 +1029,29 @@ local function warning_for_mp(name)
         --     extra = ''
         -- end
         mp.msg.warn(string.format(
-            "Warning: asyncio.mp is already loaded. Use amp.%s instead of mp.%s%s", name, name, extra))
+            'Warning: asyncio.mp is already loaded. Use amp.%s instead of mp.%s%s', name, name, extra))
     end
 end
 
-mp.set_key_bindings = warning_for_mp("set_key_bindings")
-mp.flush_keybindings = warning_for_mp("flush_keybindings")
-mp.add_key_binding = warning_for_mp("add_key_binding")
-mp.add_forced_key_binding = warning_for_mp("add_forced_key_binding")
-mp.remove_key_binding = warning_for_mp("remove_key_binding")
-mp.add_timeout = warning_for_mp("add_timeout")
-mp.add_periodic_timer = warning_for_mp("add_periodic_timer")
-mp.get_next_timeout = warning_for_mp("get_next_timeout")
-mp.register_script_message = warning_for_mp("register_script_message")
-mp.unregister_script_message = warning_for_mp("unregister_script_message")
-mp.observe_property = warning_for_mp("observe_property")
-mp.unobserve_property = warning_for_mp("unobserve_property")
-mp.register_event = warning_for_mp("register_event")
-mp.unregister_event = warning_for_mp("unregister_event")
-mp.register_idle = warning_for_mp("register_idle")
-mp.unregister_idle = warning_for_mp("unregister_idle")
-mp.add_hook = warning_for_mp("add_hook")
-mp.command_native_async = warning_for_mp("command_native_async")
-mp.abort_async_command = warning_for_mp("abort_async_command")
+mp.set_key_bindings = warning_for_mp('set_key_bindings')
+mp.flush_keybindings = warning_for_mp('flush_keybindings')
+mp.add_key_binding = warning_for_mp('add_key_binding')
+mp.add_forced_key_binding = warning_for_mp('add_forced_key_binding')
+mp.remove_key_binding = warning_for_mp('remove_key_binding')
+mp.add_timeout = warning_for_mp('add_timeout')
+mp.add_periodic_timer = warning_for_mp('add_periodic_timer')
+mp.get_next_timeout = warning_for_mp('get_next_timeout')
+mp.register_script_message = warning_for_mp('register_script_message')
+mp.unregister_script_message = warning_for_mp('unregister_script_message')
+mp.observe_property = warning_for_mp('observe_property')
+mp.unobserve_property = warning_for_mp('unobserve_property')
+mp.register_event = warning_for_mp('register_event')
+mp.unregister_event = warning_for_mp('unregister_event')
+mp.register_idle = warning_for_mp('register_idle')
+mp.unregister_idle = warning_for_mp('unregister_idle')
+mp.add_hook = warning_for_mp('add_hook')
+mp.command_native_async = warning_for_mp('command_native_async')
+mp.abort_async_command = warning_for_mp('abort_async_command')
 
 ---@diagnostic disable-next-line: inject-field
 mp.asyncio_event_loop = true

@@ -77,7 +77,7 @@ end
 | `copy`        | `deep_copy` 与 `shallow_copy`。 |
 | `fs`          | 基于 `fstool` 的同步文件系统工具：`exists`、`create_dir` / `mkdir`、`remove_dir`、`copy`、`get_size`。 |
 | `aiofs`       | 基于 `asyncio` 与 mpv async command 的异步文件系统工具。 |
-| `asyncio`     | 协程式异步工具：`run`、`async`、`await`、`try_await`、`create_task`、`sleep`、`wait`、`wait_for`、`gather`、`shield`，以及面向 mpv 的 `amp` 事件循环（`register_event`、`observe_property`、`add_finally` 等）。`require "elxlibs.asyncio.queues"` 提供 `Queue`/`LifoQueue`，`require "elxlibs.asyncio.timeouts"` 提供 `Timeout`/`timeout`/`timeout_at`。 |
+| `asyncio`     | 协程式异步工具：`run`、`async`、`await`、`try_await`、`create_task`、`sleep`、`wait`、`wait_for`、`gather`、`shield`，以及面向 mpv 的 `amp` 事件循环（`register_event`、`observe_property`、`add_finally` 等）。直接导入子模块可使用 `queues.Queue`/`LifoQueue`、`locks.Lock`/`Event`/`Semaphore` 和 `timeouts.Timeout`/`timeout`/`timeout_at`。`Semaphore:with` 在启动新函数体前获取许可，并在成功、失败或取消后归还。 |
 | `mptl`        | mpv 工具层，目前封装 `mp.command_native` subprocess 与异步 subprocess。 |
 | `lockfile`    | 跨进程锁文件封装，按平台加载实现，Windows 下基于 Win32 API。 |
 | `socket`      | LuaSocket 入口。 |
@@ -149,7 +149,7 @@ end))
 
 ## 测试
 
-`test/asyncio` 使用 [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) 子模块运行 asyncio 核心（任务、取消、`Queue`、`Timeout`、amp 停机/`finally` 路径）与 `std` 异常测试。它不需要 mpv，`mp` 已打桩，直接用 LuaJIT 运行：
+`test/asyncio` 使用 [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) 子模块覆盖当前 asyncio 公开 API、取消和生命周期回归、amp 适配器及 `std` 异常。默认套件不需要 mpv，`mp` 已打桩，直接用 LuaJIT 运行：
 
 ```sh
 git submodule update --init --recursive
@@ -158,7 +158,7 @@ luajit test/asyncio/run.lua amp      # 只跑文件名匹配的用例
 luajit test/asyncio/run.lua -v       # 显示详细结果
 ```
 
-全部通过时退出码为 `0`。目录结构与约定见 [test/asyncio/README.md](test/asyncio/README.md)。
+全部通过时退出码为 `0`。覆盖清单、目录约定及可选的隔离真实宿主检查（`python test/asyncio/real_host.py`）见 [test/asyncio/README.md](test/asyncio/README.md)。
 
 ## 目录结构
 

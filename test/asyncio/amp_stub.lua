@@ -21,12 +21,20 @@ local NOOP_NAMES = {
 
 ---@class test.amp_stub
 ---@field wait_calls integer
----@field events table<string, any[]>   delivered `mpv` events, by name
+---@field events table<string, integer> delivered `mpv` events, by name
 ---@field messages string[]             everything written to mp.msg
+---@field calls table<string, table[]>  raw host API calls and arguments
+---@field asyncio_event_loop? boolean
+---@field msg table<string, function>
+---@field register_event function
+---@field get_time fun():number
+---@field wait_event fun(timeout:number):table
+---@field raw_hook_add function
+---@field raw_command_native_async fun(id:integer, node:table):boolean?,string?
 
 ---@class _asyncio_test.amp_stub_new_opts
 ---@field verbose? boolean                  print mp.msg output
----@field script? table<integer, string>    wait_event call # -> event name
+---@field script? table<integer, string|table> wait_event call # -> name or event payload
 ---@field error_at? integer                 raise inside wait_event at call #
 ---@field error_msg? string
 ---@field limit? integer                    hard cap on wait_event calls (default 500)
@@ -46,6 +54,7 @@ function M.new(opts)
         wait_calls = 0,
         events = {},
         messages = {},
+        calls = {},
         script_name = "test-script",
     }
 
@@ -85,10 +94,12 @@ function M.new(opts)
         if opts.error_at and stub.wait_calls == opts.error_at then
             error(opts.error_msg or "stubbed mp.wait_event failure")
         end
-        local name = script[stub.wait_calls]
-        if name then
+        local payload = script[stub.wait_calls]
+        if payload then
+            local event = type(payload) == 'string' and {event = payload} or payload
+            local name = event.event
             stub.events[name] = (stub.events[name] or 0) + 1
-            return { event = name }
+            return event
         end
         local block = math.min(tonumber(timeout) or 0, opts.max_block or 0.02)
         if block > 0 then
@@ -122,9 +133,14 @@ function M.new(opts)
     stub.get_property = function() return nil end
 
     for _, name in ipairs(NOOP_NAMES) do
-        stub[name] = function() end
+        stub[name] = function(...)
+            local calls = stub.calls[name] or {}
+            stub.calls[name] = calls
+            calls[#calls + 1] = table.pack(...)
+        end
     end
 
+    ---@cast stub test.amp_stub
     return stub
 end
 

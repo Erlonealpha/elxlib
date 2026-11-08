@@ -1,23 +1,26 @@
-local std = require('elxlibs.std')
+---@namespace asyncio
+
+local std = require 'elxlibs.std'
+
 local exception = std.exception
 
 local debug_traceback = debug.traceback
 
----@class asyncio.exceptions
+---@class exceptions
 local exceptions = {}
 
----@class asyncio.CancelledError : std.BaseException
+---@class CancelledError : std.BaseException
 ---@overload fun(msg: string?):self
 exceptions.CancelledError = exception.new_exception(
-    'asyncio.CancelledError', exception.BaseException,
+    'CancelledError', exception.BaseException,
     'The Future or Task was canceled')
 
 exceptions.TimeoutError = exception.TimeoutError
 
----@class asyncio.InvalidStateError : std.Exception
+---@class InvalidStateError : std.Exception
 ---@overload fun(msg: string?):self
 exceptions.InvalidStateError = exception.new_exception(
-    'asyncio.InvalidStateError', exception.Exception,
+    'InvalidStateError', exception.Exception,
     'The operation is not allowed in the current state')
 
 ---@param thread thread

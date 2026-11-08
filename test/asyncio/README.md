@@ -1,6 +1,6 @@
 # elxlib asyncio test-suite
 
-Smoke/regression tests for `elxlibs/asyncio` and its `std` exception plumbing.
+Functional and regression tests for `elxlibs/asyncio` and its `std` exception plumbing.
 They use [mpv-luatest](../vendor/mpv-luatest) for discovery, assertions and
 reporting, and run on **bare LuaJIT** with a project-specific `mp` stub.
 
@@ -9,7 +9,7 @@ reporting, and run on **bare LuaJIT** with a project-specific `mp` stub.
 ```sh
 git submodule update --init --recursive
 luajit test/asyncio/run.lua            # whole suite
-luajit test/asyncio/run.lua amp        # only matching files (test_amp_shutdown)
+luajit test/asyncio/run.lua amp        # amp adapters and shutdown tests
 luajit test/asyncio/run.lua -v         # include files, sections and successful tests
 luajit test/asyncio/run.lua exceptions # std exception tests
 ```
@@ -33,13 +33,57 @@ luajit test/vendor/mpv-luatest/run.lua --test-dir test/asyncio --bootstrap test/
 | --- | --- |
 | `run.lua` | Adapter to `mpv_luatest.suite.main`; keeps the existing entry command |
 | `bootstrap.lua` | LuaJIT 5.2 shims, project globals and default host stub |
-| `support.lua` | Real-clock loop and asyncio module reload helpers |
-| `amp_stub.lua` | Project `mp` stub: scripted `wait_event`, clock, watchdog and `mp.msg` capture |
+| `support.lua` | Real-clock loop, bounded task runner and module reload helpers |
+| `amp_stub.lua` | Project `mp` stub: scripted event payloads, raw API call recording, clock, watchdog and logs |
 | `test_core.lua` | `await`/`try_await`/`gather`, `Queue`, `Lock`, `shield` |
 | `test_exceptions.lua` | `raise` levels, `__cause` chaining, `traceback`, `xpcall`/`try` |
 | `test_cancellation.lua` | `cancelling`/`uncancel`, cancel before the first step, cancel while awaiting |
 | `test_timeouts.lua` | `wait_for`, `Timeout:with`, `TimeoutError` conversion |
 | `test_amp_shutdown.lua` | amp loop shutdown + `finally` callbacks (one fresh module tree per case) |
+| `test_api.lua` | Export identity; Future lifecycle/callbacks; coroutine/task inputs, results and errors; `wait`/`gather`/`shield`; generic `with` |
+| `test_loops.lua` | Loop lookup/run/stop/close, callback and timer ordering/cancellation, exception handlers |
+| `test_locks.lua` | Lock fairness, Event broadcast/clear, Semaphore capacity/FIFO/cancellation and `with` lifecycle |
+| `test_queues.lua` | Queue/LifoQueue boundaries/order, unfinished work, join and producer/consumer cancellation |
+| `test_amp_api.lua` | Events, messages, properties, bindings, timers, idle, hooks, async commands and forced-GC error retention |
+| `real_host.py`, `real_host/smoke.lua` | Optional isolated headless mpv/mpv.net integration smoke test |
+
+## Coverage and public contracts
+
+Every current exported asyncio operation has functional coverage across the files
+above. Cases cover normal results, invalid inputs, typed errors, cancellation,
+ordering, cleanup and module identity. This is an API coverage inventory, not a
+claim of complete line/branch coverage or every possible interleaving.
+
+- `wait` completes without returning a result list. It supports `all_done`
+  (default), `first_done`, `first_error`, a deadline and wrapper cancellation;
+  it does not cancel the supplied futures. Empty inputs and unknown modes fail.
+- `gather` preserves input positions, including nil results. With
+  `return_exceptions=true`, successful/failed children produce records and
+  cancelled children produce `CancelledError` objects.
+- `Semaphore:with(function/thread/Coroutine)` acquires before scheduling the body
+  and releases after success, failure or cancellation. A Task or Future supplied
+  by the caller can already be running; use a fresh callable/Coroutine when the
+  semaphore must control the start of an operation.
+- `Timeout:with` retains existing target-task semantics. An immediate deadline
+  cancels at the next scheduling/suspension point; a synchronous body can finish
+  before cancellation. Returned values keep trailing nils.
+- Failed amp event/timer/idle tasks stay owned until their errors are reported
+  after finally callbacks. Forced collection is part of the regression suite.
+- Table finalizers are not promised by the LuaJIT Lua 5.1 runtime. The suite does
+  not claim automatic `Future`/`Task` finalizer diagnostics.
+
+Optional real-host validation (Python 3.8+ and a mpv executable on PATH):
+
+```sh
+python test/asyncio/real_host.py
+python test/asyncio/real_host.py --mpv /path/to/mpv
+```
+
+`ELXLIB_MPV_BINARY` can select the executable. The runner uses a temporary config,
+disables user-script loading and visible windows, and only cleans its own process
+tree. It verifies actual message/property/async-command delivery, timers and
+shutdown/finally. It does not validate video rendering, native DLL loading,
+physical key input or playback hooks.
 
 ## Notes
 
@@ -57,6 +101,8 @@ luajit test/vendor/mpv-luatest/run.lua --test-dir test/asyncio --bootstrap test/
   *hang*: `amp_stub` turns that into a failure via a CPU-time watchdog
   (`watchdog`, default 10s) and a hard cap on `wait_event` calls (`limit`,
   default 500).
+- `support.run` bounds offline task cases with a two-second watchdog and closes
+  their loop afterward; failures cannot leave a test hung indefinitely.
 - Tests assume a LuaJIT with the usual 5.1 API; `table.pack`/`table.unpack`
   are shimmed when the interpreter was built without `LUA52COMPAT`.
 - The general `mpv_luatest.mp_stub` remains available for future host tests.
@@ -91,29 +137,18 @@ luajit test/vendor/mpv-luatest/run.lua --root test/vendor/mpv-luatest/examples/p
 
 Validated on 2026-11-08 with Windows and LuaJIT 2.1.1748459687:
 
-- Both project and direct dependency entries: **107 assertions passed**.
+- Both project and direct dependency entries: **479 assertions passed**.
 - Exception filter: **25 assertions passed**; help, absolute/local entry paths,
   empty matches, invalid options and missing dependency diagnostics passed.
 - Pinned framework `66e921ca2da4ae79cf7b2c88eb43621ebd417830`: **41 assertions
   passed**, standalone example **2 assertions passed**; dependency checkout clean.
 - EmmyLua project-root analysis: **0 errors**, **0 warnings in `test/asyncio`**,
-  **56 existing warnings elsewhere**. This is not a zero-diagnostic project run.
-- Test/docs/staged whitespace checks pass. The complete worktree check reports
-  one pre-existing trailing space in `elxlibs/asyncio/tasks.lua`, outside this
-  test/development-guide commit.
+  **55 existing warnings elsewhere**. This is not a zero-diagnostic project run.
+- Forced-GC event/timer/idle error regressions pass.
+- Optional headless mpv.net 7.1.2 smoke: message, property, async command, timer
+  and shutdown/finally delivery passed.
+- Whole-worktree and staged whitespace checks pass.
 
-One later full run intermittently failed two assertions in the amp case
-`handler error ends the loop even with a finally registered`; a direct full run
-and the amp filter passed afterward. An isolated GC probe reproduces the loss:
-collecting after `wait_event` lets the loop return successfully without
-`unhandled-boom`, while disabling GC preserves the error. Production
-`asyncio/mp.lua` stores event tasks in a weak-value table and retains only IDs
-until finally completes. This unresolved production ownership issue is outside
-the test commit; the passing counts above do not establish GC-stable amp behavior.
-
-These results use the current worktree's uncommitted asyncio implementation,
-including its direct-parent migration, `utils.lua`, timeout/amp changes and
-the corrected compound assignment in `locks.lua`. Those production changes
-are outside this test/development-guide commit. This baseline does not claim
-that the committed tree, without those changes, passes the complete suite.
-The suite does not validate native DLL loading or a real mpv process.
+The asyncio implementation and expanded tests are committed together. Validation
+loads asyncio/std directly and does not depend on unrelated worktree changes in
+fs/aiofs/json/fun/websocket or the tracked filesystem binary.

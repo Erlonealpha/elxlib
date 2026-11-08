@@ -1,31 +1,33 @@
-local class = require("elxlibs.std.class")
-local loops = require("elxlibs.asyncio.loops")
-local exception = require("elxlibs.std.exception")
-local exceptions = require("elxlibs.asyncio.exceptions")
+---@namespace asyncio
+
+local class = require 'elxlibs.std.class'
+local loops = require 'elxlibs.asyncio.loops'
+local exception = require 'elxlibs.std.exception'
+local exceptions = require 'elxlibs.asyncio.exceptions'
 
 local raise = exception.raise
 local unpack = table.unpack
 local coroutine_yield = coroutine.yield
 
-local PENDING = "pending"
-local CANCELLED = "cancelled"
-local FINISHED = "finished"
+local PENDING = 'pending'
+local CANCELLED = 'cancelled'
+local FINISHED = 'finished'
 
 local futures = {}
 
 ---@generic T, S = self
----@class asyncio.Future<T> : asyncio.Awaitable<T>
----@field _loop asyncio.EventLoop
----@field _state "pending"|"cancelled"|"finished"
----@field _result T?
+---@class Future<T> : Awaitable<T>
+---@field _loop EventLoop
+---@field _state 'pending'|'cancelled'|'finished'
+---@field _result {n:integer, [integer]:T}?
 ---@field _exception any?
 ---@field _cancelled_exc any?
 ---@field _cancel_msg string?
 ---@field _callbacks fun(fut: S)[]
----@overload fun(loop?: asyncio.EventLoop): asyncio.Future<T>
-local Future = class.new("asyncio.Future")
+---@overload fun(loop?: EventLoop): Future<T>
+local Future = class.new('Future')
 
----@param loop? asyncio.EventLoop
+---@param loop? EventLoop
 function Future:__init(loop)
     -- debug_msg('Future:__init', loop)
 
@@ -64,20 +66,21 @@ function Future:result()
     if self._state == CANCELLED then
         raise(self:_make_cancelled_error())
     elseif self._state ~= FINISHED then
-        raise(exceptions.InvalidStateError("Result is not available yet."))
+        raise(exceptions.InvalidStateError('Result is not available yet.'))
     end
     self._log_traceback = false
     if self._exception ~= nil then
         raise(self._exception, 0)
     end
-    return unpack(self._result)
+    local result = assert(self._result)
+    return unpack(result, 1, result.n)
 end
 
 function Future:exception()
     if self._state == CANCELLED then
         raise(self:_make_cancelled_error())
     elseif self._state ~= FINISHED then
-        raise(exceptions.InvalidStateError("Exception is not set."))
+        raise(exceptions.InvalidStateError('Exception is not set.'))
     end
     self._log_traceback = false
     return self._exception
@@ -94,8 +97,8 @@ function Future:add_done_callback(cb)
 end
 
 function Future:remove_done_callback(fn)
-    for i, cb in ipairs(self._callbacks) do
-        if cb == fn then
+    for i = #self._callbacks, 1, -1 do
+        if self._callbacks[i] == fn then
             table.remove(self._callbacks, i)
         end
     end
@@ -104,16 +107,16 @@ end
 ---@param ... T...
 function Future:set_result(...)
     if self._state ~= PENDING then
-        raise(exceptions.InvalidStateError("Future is already done, state: ".. self._state))
+        raise(exceptions.InvalidStateError('Future is already done, state: '.. self._state))
     end
     self._state = FINISHED
-    self._result = {...}
+    self._result = table.pack(...)
     self:__schedule_callbacks()
 end
 
 function Future:set_exception(exc)
     if self._state ~= PENDING then
-        raise(exceptions.InvalidStateError("Future is already done, state: ".. self._state))
+        raise(exceptions.InvalidStateError('Future is already done, state: '.. self._state))
     end
     self._state = FINISHED
     self._exception = exc
@@ -121,15 +124,15 @@ function Future:set_exception(exc)
     self._log_traceback = true
 end
 
----@return asyncio.CancelledError
+---@return CancelledError
 function Future:_make_cancelled_error()
     if self._cancelled_exc ~= nil then
         return self._cancelled_exc
     end
-    return exceptions.CancelledError(self._cancel_msg or "Future was cancelled.")
+    return exceptions.CancelledError(self._cancel_msg or 'Future was cancelled.')
 end
 
----@return asyncio.EventLoop
+---@return EventLoop
 function Future:_get_loop()
     return self._loop
 end
@@ -146,7 +149,7 @@ function Future:__await()
         end
     end
     if not self:done() then
-        raise(exception.RuntimeError("await wasn't used with future."))
+        raise(exception.RuntimeError('await wasn\'t used with future.'))
     end
     return self:result()
 end
@@ -161,7 +164,7 @@ function Future:__try_await()
         end
     end
     if not self:done() then
-        raise(exception.RuntimeError("await wasn't used with future."))
+        raise(exception.RuntimeError('await wasn\'t used with future.'))
     end
     if self:cancelled() then
         -- cancellation is a result like any other for try_await: report it as

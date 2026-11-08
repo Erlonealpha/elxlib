@@ -1,3 +1,5 @@
+---@namespace asyncio
+
 local std = require 'elxlibs.std'
 local locks = require 'elxlibs.asyncio.locks'
 local asyncio = require 'elxlibs.asyncio'
@@ -17,18 +19,19 @@ local function table_remove(tbl, item)
     end
 end
 
----@class asyncio.QueueFull : std.Exception
+---@class QueueFull : std.Exception
 ---@overload fun(message:string?):self
-local QueueFull = std.exception.new_exception('asyncio.QueueFull', std.Exception)
+local QueueFull = std.exception.new_exception('QueueFull', std.Exception)
 
----@class asyncio.QueueEmpty : std.Exception
+---@class QueueEmpty : std.Exception
 ---@overload fun(message:string?):self
-local QueueEmpty = std.exception.new_exception('asyncio.QueueEmpty', std.Exception)
+local QueueEmpty = std.exception.new_exception('QueueEmpty', std.Exception)
 
----@class asyncio.Queue<T = any> : std.object
+---@class Queue<T = any> : std.object
 ---@field _queue T[]
+---@field __len fun(self:Queue<T>):integer
 ---@overload fun(maxsize:int?):self
-local Queue = std.class.new('asyncio.Queue')
+local Queue = std.class.new('Queue')
 ---@param maxsize int?
 function Queue:__init(maxsize)
     self.maxsize = maxsize or 0
@@ -40,7 +43,7 @@ function Queue:__init(maxsize)
     self._finished:set()
 end
 
----@param waiters asyncio.Future<nil>[]
+---@param waiters Future<nil>[]
 function Queue:_wakeup_next(waiters)
     while #waiters > 0 do
         local w = table.remove(waiters, 1)
@@ -111,7 +114,7 @@ function Queue:put_nowait(item)
 end
 
 ---@async
----@return asyncio.Coroutine<T>
+---@return Coroutine<T>
 function Queue:get()
 return async(function()
     while self:empty() do
@@ -159,9 +162,9 @@ return async(function()
 end)
 end
 
----@class asyncio.LifoQueue : asyncio.Queue
+---@class LifoQueue : Queue
 ---@overload fun(maxsize:int?):self
-local LifoQueue = std.class.new('asyncio.LifoQueue', {Queue})
+local LifoQueue = std.class.new('LifoQueue', Queue)
 function LifoQueue:_get()
     return table.remove(self._queue)
 end

@@ -1,1 +1,1 @@
-return require('mp').msg
+return require 'mp'.msg

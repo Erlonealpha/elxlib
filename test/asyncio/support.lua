@@ -7,6 +7,11 @@
 
 local S = {}
 
+--- Deliberately invalid inputs for runtime boundary tests.
+---@param value any
+---@return any
+function S.invalid(value) return value end
+
 --- An EventLoop whose clock has sub-second resolution (the default loop uses
 --- os.time(), which would make every timer test wait up to a second).
 ---@param asyncio asyncio
@@ -36,6 +41,24 @@ function S.reload_asyncio(stub)
     end
     package.preload["mp"] = function() return stub end
     return require("elxlibs.asyncio")
+end
+
+--- Run offline coroutine cases with a watchdog, including deadlock regressions.
+---@param body function
+function S.run(body)
+    local asyncio = require 'elxlibs.asyncio'
+    local loop = S.real_loop(asyncio)
+    local watchdog = loop:call_later(2, function()
+        error('TEST-WATCHDOG: offline task did not finish')
+    end)
+    loop:set_exception_handler(function(context)
+        error(context.exception or context.msg, 0)
+    end)
+    local result = table.pack(pcall(asyncio.run, body, loop))
+    watchdog:cancel()
+    loop:close()
+    if not result[1] then error(result[2], 0) end
+    return table.unpack(result, 2, result.n)
 end
 
 return S

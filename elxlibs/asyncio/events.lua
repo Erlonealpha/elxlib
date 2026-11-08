@@ -1,3 +1,5 @@
+---@namespace asyncio
+
 local std = require 'elxlibs.std'
 
 local table = table
@@ -7,12 +9,15 @@ local raise = std.raise
 
 local events = {}
 
----@class asyncio.Handle : std.object
+---@alias CallbackArgs {n?:integer} & any[]
+
+---@class Handle : std.object
 ---@field func fun(...)
----@field args any[]?
----@field loop asyncio.EventLoop
----@overload fun(func: fun(...), args?: any[], loop: asyncio.EventLoop):self
-local Handle = std.class.new("asyncio.Handle")
+---@field args CallbackArgs?
+---@field loop EventLoop
+---@overload fun(func: fun(...), args?: any[], loop: EventLoop):self
+local Handle = std.class.new('Handle')
+---@param args CallbackArgs?
 function Handle:__init(func, args, loop) 
     self.func = func
     self.args = args
@@ -30,9 +35,9 @@ end
 
 function Handle:_run()
     local ok, err
-    if self.args ~= nil and #self.args > 0 then
+    if self.args ~= nil then
         ok, err = xpcall(function()
-            self.func(table.unpack(self.args))
+            self.func(table.unpack(self.args, 1, self.args.n or #self.args))
         end)
     else
         ok, err = xpcall(self.func)
@@ -46,10 +51,10 @@ function Handle:_run()
     end
 end
 
----@class asyncio.TimerHandle : asyncio.Handle
+---@class TimerHandle : Handle
 ---@field when number
----@overload fun(func: fun(...), args?: any[], when: number, loop: asyncio.EventLoop):self
-local TimerHandle = std.class.new('asyncio.Handle', {Handle})
+---@overload fun(func: fun(...), args?: any[], when: number, loop: EventLoop):self
+local TimerHandle = std.class.new('TimerHandle', Handle)
 function TimerHandle:__init(func, args, when, loop)
     std.super(TimerHandle, self, Handle).__init(self, func, args, loop)
     self.when = when
@@ -58,10 +63,10 @@ end
 events.Handle = Handle
 events.TimerHandle = TimerHandle
 
----@type {loop: asyncio.EventLoop?}
+---@type {loop: EventLoop?}
 local _running_loop = {loop = nil}
 
---- @return asyncio.EventLoop
+--- @return EventLoop
 function events.get_event_loop()
     local curr = events._get_running_loop()
     if curr == nil then
@@ -70,7 +75,7 @@ function events.get_event_loop()
     return curr
 end
 
---- @return asyncio.EventLoop
+--- @return EventLoop
 function events.get_running_loop()
     if _running_loop.loop == nil then
         raise(std.RuntimeError('no running event loop'))
@@ -79,7 +84,7 @@ function events.get_running_loop()
     return _running_loop.loop
 end
 
----@param loop asyncio.EventLoop?
+---@param loop EventLoop?
 function events._set_running_loop(loop)
     -- debug_msg('_set_running_loop', loop)
     _running_loop.loop = loop

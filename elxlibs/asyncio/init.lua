@@ -5,9 +5,10 @@
 ---@class asyncio
 local M = {}
 
-local futures = require('elxlibs.asyncio.futures')
-local tasks = require('elxlibs.asyncio.tasks')
-local loops = require('elxlibs.asyncio.loops')
+local futures = require 'elxlibs.asyncio.futures'
+local tasks = require 'elxlibs.asyncio.tasks'
+local loops = require 'elxlibs.asyncio.loops'
+local events = require 'elxlibs.asyncio.events'
 
 
 ---@generic T
@@ -33,5 +34,6 @@ M.shield = tasks.shield
 M.futures = futures
 M.tasks = tasks
 M.loops = loops
+M.events = events
 
 return M

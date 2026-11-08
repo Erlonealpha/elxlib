@@ -1,11 +1,10 @@
+---@namespace asyncio
+
 local std = require 'elxlibs.std'
 local asyncio = require 'elxlibs.asyncio'
-local coroutines = require 'elxlibs.asyncio.coroutine'
 local exceptions = require 'elxlibs.asyncio.exceptions'
+local utils = require 'elxlibs.asyncio.utils'
 
-local async = asyncio.async
-local try_await = asyncio.try_await
-local await = asyncio.await
 local raise = std.raise
 
 
@@ -15,20 +14,20 @@ local EXPIRING = 'expiring'
 local EXPIRED = 'expired'
 local EXITED = 'finished'
 
----@alias asyncio.TimeoutState
+---@alias TimeoutState
 --- | 'created'
 --- | 'active'
 --- | 'expiring'
 --- | 'expired'
 --- | 'finished'
 
----@class asyncio.Timeout : std.object
----@field _state asyncio.TimeoutState
----@field _timeout_handler asyncio.Handle|asyncio.TimerHandle
----@field _task asyncio.Task<any>
+---@class Timeout : std.object
+---@field _state TimeoutState
+---@field _timeout_handler Handle|TimerHandle
+---@field _task Task<any>
 ---@field _when number?
 ---@overload fun(when:number?):self
-local Timeout = std.class.new_final('asyncio.Timeout')
+local Timeout = std.class.new_final('Timeout')
 function Timeout:__init(when)
     self._state = CREATED
     self._timeout_handler = nil
@@ -85,37 +84,18 @@ function Timeout:__tostring()
 end
 
 ---@async
+---@param func_or_awaitable thread | function | Future<any> | Coroutine<any>
 function Timeout:with(func_or_awaitable)
-return async(function()
-    local task
-    if std.isinstance(func_or_awaitable, asyncio.tasks.Task) then
-        task = func_or_awaitable
-    elseif std.isinstance(func_or_awaitable, asyncio.futures.Future) then
-        -- Timeout:__enter/__exit need Task.cancelling()/Task.uncancel(), which
-        -- plain Futures do not have: run the future inside a wrapper task.
-        local fut = func_or_awaitable
-        task = asyncio.create_task(function() return await(fut) end)
-    else
-        local typ = type(func_or_awaitable)
-        if typ == 'function' or
-            typ == 'thread' or
-            std.isinstance(func_or_awaitable, coroutines.Coroutine) then
-            task = asyncio.create_task(func_or_awaitable)
-        else
-            raise(std.ValueError('Timeout:with got invalid type'))
-        end
-    end
-    self:__enter(task)
-    local res = table.pack(try_await(task))
-    local ok = res[1]
-    local err = not ok and res[2] or nil
-    self:__exit(err)
-    if err then
-        raise(err, 0)
-    end
-    ---@diagnostic disable-next-line: redundant-return-value
-    return table.unpack(res, 2, res.n)
-end)
+    return utils.with(
+        func_or_awaitable,
+        function(task)
+            self:__enter(task)
+        end,
+        function(exc)
+            self:__exit(exc)
+        end,
+        'Timeout:with'
+    )
 end
 
 function Timeout:__enter(task)
@@ -158,14 +138,14 @@ end
 local M = {Timeout = Timeout}
 
 ---@param delay number?
----@return asyncio.Timeout
+---@return Timeout
 function M.timeout(delay)
     local loop = asyncio.loops.get_running_loop()
     return Timeout(delay and loop:time() + delay or nil)
 end
 
 ---@param when number?
----@return asyncio.Timeout
+---@return Timeout
 function M.timeout_at(when)
     return Timeout(when)
 end

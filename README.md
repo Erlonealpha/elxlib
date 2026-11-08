@@ -77,7 +77,7 @@ end
 | `copy` | `deep_copy` and `shallow_copy`. |
 | `fs` | Synchronous filesystem helpers backed by `fstool`: `exists`, `create_dir` / `mkdir`, `remove_dir`, `copy`, `get_size`. |
 | `aiofs` | Async filesystem helpers built on `asyncio` and mpv async commands. |
-| `asyncio` | Coroutine-based async helpers: `run`, `async`, `await`, `try_await`, `create_task`, `sleep`, `wait`, `wait_for`, `gather`, `shield`, plus the mpv-backed `amp` event loop (`register_event`, `observe_property`, `add_finally`, ...). `require "elxlibs.asyncio.queues"` adds `Queue`/`LifoQueue` and `require "elxlibs.asyncio.timeouts"` adds `Timeout`/`timeout`/`timeout_at`. |
+| `asyncio` | Coroutine-based async helpers: `run`, `async`, `await`, `try_await`, `create_task`, `sleep`, `wait`, `wait_for`, `gather`, `shield`, plus the mpv-backed `amp` event loop (`register_event`, `observe_property`, `add_finally`, ...). Direct imports add `queues.Queue`/`LifoQueue`, `locks.Lock`/`Event`/`Semaphore` and `timeouts.Timeout`/`timeout`/`timeout_at`. `Semaphore:with` acquires before starting a fresh body and releases on every exit. |
 | `mptl` | mpv tool layer. Currently wraps `mp.command_native` subprocess and async subprocess calls. |
 | `lockfile` | Cross-process lock file wrapper. Loads a platform implementation; the Windows backend uses the Win32 API. |
 | `socket` | LuaSocket entry module. |
@@ -149,7 +149,7 @@ end))
 
 ## Tests
 
-`test/asyncio` uses the [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) submodule for the asyncio core (tasks, cancellation, `Queue`, `Timeout`, amp shutdown/`finally`) and `std` exception tests. It runs on bare LuaJIT with a stubbed `mp` API:
+`test/asyncio` uses the [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) submodule to cover the current asyncio public APIs, cancellation/lifecycle regressions, amp adapters and `std` exceptions. The default suite runs on bare LuaJIT with a stubbed `mp` API:
 
 ```sh
 git submodule update --init --recursive
@@ -158,7 +158,7 @@ luajit test/asyncio/run.lua amp      # only files whose name matches
 luajit test/asyncio/run.lua -v       # detailed output
 ```
 
-The exit code is `0` when everything passes. See [test/asyncio/README.md](test/asyncio/README.md) for the layout and conventions.
+The exit code is `0` when everything passes. See [test/asyncio/README.md](test/asyncio/README.md) for the coverage inventory, conventions and optional isolated real-host check (`python test/asyncio/real_host.py`).
 
 ## Project Layout
 

@@ -1,13 +1,15 @@
-local class = require("elxlibs.std.class")
-local exception = require("elxlibs.std.exception")
-local events = require("elxlibs.asyncio.events")
-local log = require("elxlibs.asyncio.log")
+---@namespace asyncio
+
+local class = require 'elxlibs.std.class'
+local exception = require 'elxlibs.std.exception'
+local events = require 'elxlibs.asyncio.events'
+local log = require 'elxlibs.asyncio.log'
 
 local function lzy_futures()
-    return require("elxlibs.asyncio.futures")
+    return require 'elxlibs.asyncio.futures'
 end
 local function lzy_tasks()
-    return require("elxlibs.asyncio.tasks")
+    return require 'elxlibs.asyncio.tasks'
 end
 
 local type = type
@@ -20,15 +22,15 @@ local finally = exception.finally
 local raise = exception.raise
 
 
----@class asyncio.loops
+---@class loops
 local M = {}
 
 ---@generic T
----@class asyncio.EventLoop : std.object
----@field _ready asyncio.Handle[]
----@field _scheduled asyncio.TimerHandle[]
----@overload fun():asyncio.EventLoop
-local EventLoop = class.new('asyncio.EventLoop')
+---@class EventLoop : std.object
+---@field _ready Handle[]
+---@field _scheduled TimerHandle[]
+---@overload fun():EventLoop
+local EventLoop = class.new('EventLoop')
 
 function EventLoop:__init()
     self._ready = {}
@@ -39,27 +41,27 @@ function EventLoop:__init()
 end
 
 ---@generic T
----@return asyncio.Future<T>
+---@return Future<T>
 function EventLoop:create_future()
     return lzy_futures().Future(self)
 end
 
 ---@generic T
----@param func (async fun(...):T)|thread|asyncio.Coroutine<T>
+---@param func (async fun(...):T)|thread|Coroutine<T>
 ---@param name string?
----@return asyncio.Task<T>
+---@return Task<T>
 function EventLoop:create_task(func, name)
     self:_check_close()
     return lzy_tasks().Task(func, self, name)
 end
 
 ---@generic T
----@param future asyncio.Future<T>
+---@param future Future<T>
 ---@return T
 function EventLoop:run_until_complete(future)
     self:_check_close()
     if future._loop ~= self then
-        raise(exception.ValueError("The future belongs to a different event loop"))
+        raise(exception.ValueError('The future belongs to a different event loop'))
     end
     future:add_done_callback(function(fut)
         fut._loop:stop()
@@ -120,14 +122,16 @@ end
 ---@param callback function
 ---@param args? any[]
 function EventLoop:_callsoon(callback, args)
-    table.insert(self._ready, events.Handle(callback, args, self))
+    local handle = events.Handle(callback, args, self)
+    table.insert(self._ready, handle)
+    return handle
 end
 
 ---@generic T
 ---@param delay number
 ---@param callback fun(...: T...)
 ---@param args? T[]
----@return asyncio.TimerHandle
+---@return TimerHandle
 function EventLoop:call_later(delay, callback, args)
     return self:call_at(self:time()+delay, callback, args)
 end
@@ -136,7 +140,7 @@ end
 ---@param when number
 ---@param callback fun(...: T...)
 ---@param args? T[]
----@return asyncio.TimerHandle
+---@return TimerHandle
 function EventLoop:call_at(when, callback, args) 
     -- debug_msgf('EventLoop:call_at(%.2f, %s)', when, callback)
     if when == nil then
@@ -161,10 +165,11 @@ end
 
 ---@param callback function
 ---@param args? any[]
+---@return Handle
 function EventLoop:call_soon(callback, args)
     self:_check_close()
     self._check_callable(callback, 'call_soon')
-    self:_callsoon(callback, args)
+    return self:_callsoon(callback, args)
 end
 
 ---@return number
@@ -182,7 +187,7 @@ end
 
 function EventLoop:_check_close()
     if self._closed then
-        raise(exception.RuntimeError("Event loop is closed"))
+        raise(exception.RuntimeError('Event loop is closed'))
     end
 end
 
@@ -198,7 +203,7 @@ end
 
 function EventLoop._check_callable(callable, funcname)
     local t = type(callable)
-    if t ~= "function" then
+    if t ~= 'function' then
         error('a function was expected by ' .. funcname .. '(),' ..
             'got' .. t
         )
@@ -224,30 +229,30 @@ function EventLoop:_run_once()
     end
 end
 
----@alias asyncio._exc_handler_context {
+---@alias _exc_handler_context {
 ---     msg: any,
 ---     exception?: any,
----     handle?: asyncio.Handle,
----     task?: asyncio.Task<any>,
----     future?: asyncio.Future<any>,
+---     handle?: Handle,
+---     task?: Task<any>,
+---     future?: Future<any>,
 --- }
 
----@param handler fun(context: asyncio._exc_handler_context)
+---@param handler fun(context: _exc_handler_context)
 function EventLoop:set_exception_handler(handler)
     self._check_callable(handler, 'set_exception_handler')
     self._exception_handler = handler
 end
 
----@return fun(context: asyncio._exc_handler_context)?
+---@return fun(context: _exc_handler_context)?
 function EventLoop:get_exception_handler()
     return self._exception_handler
 end
 
----@param context asyncio._exc_handler_context
+---@param context _exc_handler_context
 function EventLoop.default_exception_handler(context)
     local msg = context.msg
     if not msg then
-        msg = 'unhandled exception in asyncio.EventLoop'
+        msg = 'unhandled exception in EventLoop'
     end
     if context.exception ~= nil then
         msg = msg .. '\n' .. tostring(context.exception)
@@ -255,7 +260,7 @@ function EventLoop.default_exception_handler(context)
     log.error(msg)
 end
 
----@param context asyncio._exc_handler_context
+---@param context _exc_handler_context
 function EventLoop:call_exception_handler(context)
     if self._exception_handler == nil then
         self.default_exception_handler(context)
@@ -268,7 +273,7 @@ end
 M.EventLoop = EventLoop
 
 --- Create a new event loop.
---- @return asyncio.EventLoop
+--- @return EventLoop
 function M.new_event_loop()
     return EventLoop()
 end
