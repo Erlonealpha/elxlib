@@ -71,6 +71,7 @@ end
 | 模块          | 说明 |
 | ---           | --- |
 | `std`         | 字符串工具、类系统和异常封装。包含 `split`、`trim`、`class`、`raise`/`traceback`/`xpcall`、`try/catch/finally`，并支持通过 `__cause` 串联异常链。 |
+| `dataclass`   | 独立的共享方法数据类：字段声明、构造、相等/排序、浅冻结、replace 和导出。不依赖 `std.class` 或 mpv；详见 [API 与存储规则](elxlibs/dataclass/README.md)。 |
 | `json`        | JSON 编码/解码，提供 `dumps`、`loads` 和 `json.null`。`dumps` 支持自定义编码器（`json.IEncoder` / `json.IDecoder`）以及 `fallback` 兜底函数。 |
 | `hashlib`     | 纯 Lua 哈希函数集合（支持 `hashlib.partial` 分块哈希），并导出 `base64_encode` / `base64_decode`。 |
 | `cjson`       | Lua CJSON 入口模块：`cjson` 与 `cjson.safe`（依赖 `bin/cjson.dll`）。 |
@@ -149,7 +150,7 @@ end))
 
 ## 测试
 
-`test/run.lua` 使用 [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) 子模块自动发现 `test/test_<group>/test_*.lua`。分组覆盖 std、json、hashlib、fs、aiofs 和 asyncio，以及取消和生命周期回归、宿主适配器。默认套件以隔离的宿主桩运行，不需要 mpv，直接使用 LuaJIT：
+`test/run.lua` 使用 [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) 子模块自动发现 `test/test_<group>/test_*.lua`。分组覆盖 dataclass、std、json、hashlib、fs、aiofs 和 asyncio，以及取消和生命周期回归、宿主适配器。默认套件以隔离的宿主桩运行，不需要 mpv，直接使用 LuaJIT：
 
 ```sh
 git submodule update --init --recursive

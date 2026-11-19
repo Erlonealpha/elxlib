@@ -16,6 +16,7 @@ mp.utils = require 'mp.utils'
 ---@field json json
 ---@field cjson cjson
 ---@field std elxstd
+---@field dataclass dataclass.dataclass
 ---@field mptl mptl
 ---@field rex LrexlibPcre2
 ---@field lockfile elxlockfile
