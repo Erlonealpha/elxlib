@@ -70,7 +70,7 @@ end
 
 | 模块          | 说明 |
 | ---           | --- |
-| `std`         | 基础工具函数、类系统和异常封装。包含 `round`、`clamp`、`split`、`trim`、`class`、`raise`/`traceback`/`xpcall`、`try/catch/finally`，并支持通过 `__cause` 串联异常链。 |
+| `std`         | 字符串工具、类系统和异常封装。包含 `split`、`trim`、`class`、`raise`/`traceback`/`xpcall`、`try/catch/finally`，并支持通过 `__cause` 串联异常链。 |
 | `json`        | JSON 编码/解码，提供 `dumps`、`loads` 和 `json.null`。`dumps` 支持自定义编码器（`json.IEncoder` / `json.IDecoder`）以及 `fallback` 兜底函数。 |
 | `hashlib`     | 纯 Lua 哈希函数集合（支持 `hashlib.partial` 分块哈希），并导出 `base64_encode` / `base64_decode`。 |
 | `cjson`       | Lua CJSON 入口模块：`cjson` 与 `cjson.safe`（依赖 `bin/cjson.dll`）。 |

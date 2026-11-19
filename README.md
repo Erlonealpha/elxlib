@@ -70,7 +70,7 @@ end
 
 | Module | Description |
 | --- | --- |
-| `std` | Basic utilities, class helpers, and exception helpers. Includes `round`, `clamp`, `split`, `trim`, `class`, `raise`/`traceback`/`xpcall`, `try/catch/finally`, and exception chaining via `__cause`. |
+| `std` | String utilities, class helpers, and exception helpers. Includes `split`, `trim`, `class`, `raise`/`traceback`/`xpcall`, `try/catch/finally`, and exception chaining via `__cause`. |
 | `json` | JSON encode/decode helpers: `dumps`, `loads`, and `json.null`. `dumps` accepts a custom encoder (see `json.IEncoder` / `json.IDecoder`) and a `fallback` for unsupported values. |
 | `hashlib` | Pure Lua hashing helpers (including chunked/partial hashing via `hashlib.partial`) plus `base64_encode` / `base64_decode`. |
 | `cjson` | Thin entry modules for Lua CJSON: `cjson` and `cjson.safe` (requires `bin/cjson.dll`). |

@@ -4,16 +4,6 @@ local S = require 'test_std.support'
 
 F.section('std utilities and exports')
 
-F.test('round and clamp handle both signs and boundaries', function()
-    for _, case in ipairs({{0, 0}, {1.49, 1}, {1.5, 2}, {-1.49, -1}, {-1.5, -2}}) do
-        F.eq(std.round(case[1]), case[2], 'round ' .. case[1])
-    end
-    F.eq(std.clamp(-2, 0, 3), 0, 'lower bound')
-    F.eq(std.clamp(4, 0, 3), 3, 'upper bound')
-    F.eq(std.clamp(2, 0, 3), 2, 'within range')
-    F.eq(std.clamp(3, 3, 3), 3, 'equal bounds')
-end)
-
 F.test('split uses literal delimiters, keeps empty fields and supports limits', function()
     local fields = std.split('a.*b.*', '.*')
     F.eq(#fields, 3, 'pattern characters treated literally')
