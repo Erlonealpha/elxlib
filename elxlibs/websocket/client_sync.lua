@@ -21,7 +21,7 @@ local tools = require 'websocket.tools'
 ---@field ssl table?
 ---@field origin string?
 ---@overload fun(options?: WebSocketClientOptions):self
-local Client = std.class.new('WebSocketClient', {connection})
+local Client = std.class.new('WebSocketClient', connection) -- FIXME
 
 ---@param options? WebSocketClientOptions
 function Client:__init(options)

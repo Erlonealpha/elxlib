@@ -1,5 +1,5 @@
 ---@class elxcopy
-local copy = {}
+local copy = {version = '1.0.0'}
 
 ---@generic T
 ---@param obj T

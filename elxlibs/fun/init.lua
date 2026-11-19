@@ -1086,7 +1086,7 @@ methods.op = operator
 --------------------------------------------------------------------------------
 
 ---@param iterable any
----@param sep string
+---@param sep string?
 function exports.str_concat(iterable, sep)
     if sep == nil then
         sep = ''

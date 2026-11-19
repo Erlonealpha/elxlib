@@ -3,7 +3,7 @@
 -- It provides a way to create and manage coroutines, as well as a way to schedule
 
 ---@class asyncio
-local M = {}
+local M = {version = '0.3.0'}
 
 local futures = require 'elxlibs.asyncio.futures'
 local tasks = require 'elxlibs.asyncio.tasks'

@@ -17,18 +17,6 @@ local class = require "elxlibs.std.class"
 require "elxlibs.std.exception_init"
 require "elxlibs.std.mp_event_loop_wrap"
 
-function M.round(num)
-    if num >= 0 then
-        return math.floor(num + 0.5)
-    else
-        return math.ceil(num - 0.5)
-    end
-end
-
-function M.clamp(num, min, max)
-    return math.max(math.min(num, max), min)
-end
-
 ---@param str string
 ---@param pattern string
 ---@param maxsplit? number
@@ -62,21 +50,6 @@ function M.split(str, pattern, maxsplit)
 
     return result
 end
-
-
--- ---@param str string
--- ---@return string
--- function M.strip(str, chars)
---     if not str then
---         return ""
---     end
---     if type(str) ~= "string" then
---         exception.raise(exception.TypeError("Expected string, got " .. type(str)))
---     end
---     if not chars then
---         chars = " "
---     end
--- end
 
 ---@param str string?
 ---@return string[]
