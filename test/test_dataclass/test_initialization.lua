@@ -210,3 +210,63 @@ F.test('explicit freeze migrates fields in place without freezing nested objects
     F.raises(function() D.freeze({}) end, 'expected a dataclass instance', 'freeze requires instance')
     F.raises(function() D.isfrozen(S.runtime({})) end, 'expected a dataclass instance', 'isfrozen guard')
 end)
+
+F.test('cached constructors keep each class allocator and initialization independent', function()
+    local Mutable = S.runtime(D.new)('CachedMutable') {D.field('x', 1)}
+    local Frozen = S.runtime(D.new)('CachedFrozen', nil, {frozen = true}) {D.field('x', 2)}
+    local Named = S.runtime(D.new)('CachedNamed', nil, {kw_init = true}) {D.field('x', 3)}
+    local Child = S.runtime(D.new)('CachedChild', Mutable) {D.field('y', 4)}
+    D.finish(Frozen)
+    D.finish(Child)
+    for _ = 1, 2 do
+        local a, b, c, d = Mutable(), Frozen(), Named {x = 9}, Child()
+        F.eq(a.x, 1, 'mutable default remains distinct')
+        F.eq(b.x, 2, 'frozen default remains distinct')
+        F.eq(c.x, 9, 'named constructor remains distinct')
+        F.eq(d.x + d.y, 5, 'subclass merges its own fields')
+        F.eq(D.isfrozen(a), false, 'mutable allocator remains direct')
+        F.eq(D.isfrozen(b), true, 'frozen allocator remains constrained')
+        F.eq(D.isinstance(d, Child), true, 'subclass allocates its own identity')
+        F.eq(D.isinstance(a, Child), false, 'parent allocator remains independent')
+    end
+end)
+
+F.test('custom allocation preserves argument nils and initialization adapts to a pre-hook freeze', function()
+    local args = {n = 0}
+    local Type = S.runtime(D.new)('AllocationArgs') {D.field('x'), D.field('y', 5)}
+    function Type:__new(...)
+        args = {n = select('#', ...), ...}
+        return D.allocate(self)
+    end
+    function Type:__pre_init() D.freeze(self) end
+    local first = Type(false, nil)
+    F.eq(args.n, 2, 'custom allocator receives trailing nil')
+    F.eq(args[1], false, 'custom allocator receives false')
+    F.eq(first.x, false, 'generated writer runs after pre-hook chooses frozen storage')
+    F.eq(first.y, nil, 'generated writer preserves trailing nil')
+    F.eq(D.isfrozen(first), true, 'pre-hook froze allocated instance')
+    F.eq(rawget(first, 'x'), nil, 'initializer writes backing data after pre-hook')
+    F.raises(function() first.x = 1 end, 'cannot assign frozen', 'pre-hook freeze remains effective')
+    local second = Type(2)
+    F.eq(args.n, 1, 'cached custom allocation keeps actual argument count')
+    F.eq(second.y, 5, 'omitted input still selects default')
+    F.eq(rawequal(first, second), false, 'cached allocator always returns new instance')
+end)
+
+F.test('validators see every initialized field even across non-init declarations', function()
+    local events = {}
+    local Type = S.runtime(D.new)('ValidatorPlan', nil, {kw_init = true}) {
+        D.field('first', 1), D.field('computed', nil, {init = false}),
+        D.field('last', nil, {validator = function(self, field, value)
+            events[#events + 1] = 'last'
+            assert(S.runtime(self).first == 1 and value == nil, 'all fields initialized')
+            field.name = 'changed only in copy'
+        end}),
+    }
+    function Type:__post_init() self.computed = 7 end
+    local first, second = Type(), Type()
+    F.eq(table.concat(events, ','), 'last,last', 'only participating validators run in declaration order')
+    F.eq(first.computed, 7, 'post follows complete validation')
+    F.eq(second.last, nil, 'validator descriptor mutation does not alter schema')
+    F.eq(assert(D.fields(Type)[3]).name, 'last', 'validator received a fresh descriptor')
+end)

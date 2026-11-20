@@ -72,6 +72,8 @@ M.NIL = sentinel('dataclass.NIL')
 ---@field frozen_mt table?
 ---@field initializer (fun(self:Object, ...:any))?
 ---@field allocator (fun(cls:Class, ...:any):Object)?
+---@field allocate (fun():Object)?
+---@field constructor (fun(cls:Class, ...:any):Object)?
 ---@field generated_eq function?
 ---@field generated_lt function?
 ---@field generated_le function?
@@ -301,9 +303,17 @@ end
 
 ---@param cls Class
 ---@param state State
+---@return fun(self:Object, ...:any)
 local function make_initializer(cls, state)
     local pre, post = cls.__pre_init, cls.__post_init
     local keyword = state.opts.kw_init
+    local fields = state.fields
+    ---@type Field[]
+    local validators = {}
+    local field_count, input_count = #fields, #state.inputs
+    for _, f in ipairs(fields) do
+        if f.validator then validators[#validators + 1] = f end
+    end
     return function(self, ...)
         local n = select('#', ...)
         local values
@@ -312,13 +322,14 @@ local function make_initializer(cls, state)
             values = n == 0 and {} or (...)
             check_named(state, values)
         else
-            if n > #state.inputs then fail('too many positional arguments') end
+            if n > input_count then fail('too many positional arguments') end
             values = {...}
         end
         if pre then pre(self) end
         local data = data_of(self)
         local index = 0
-        for _, f in ipairs(state.fields) do
+        for i = 1, field_count do
+            local f = fields[i] --[[@as Field]] -- Dense schema was validated at definition.
             local value, present
             if f.init then
                 index = index + 1
@@ -334,8 +345,8 @@ local function make_initializer(cls, state)
             if f.converter then value = f.converter(value) end
             rawset(data, f.name, value)
         end
-        for _, f in ipairs(state.fields) do
-            if f.validator then f.validator(self, copy(f), data[f.name]) end
+        for _, f in ipairs(validators) do
+            assert(f.validator)(self, copy(f), data[f.name])
         end
         if post then post(self) end
     end
@@ -422,6 +433,39 @@ local function custom_meta(cls, key)
     end
 end
 
+---@param cls Class
+---@param mt table
+local function make_allocator(cls, mt, frozen)
+    if frozen then
+        return function()
+            return setmetatable({__class = cls, __dict = {}}, mt)
+        end
+    end
+    return function()
+        return setmetatable({__class = cls}, mt)
+    end
+end
+
+---@param cls Class
+---@param allocate fun():Object
+---@param init fun(self:Object, ...:any)
+---@param custom_new? fun(cls:Class, ...:any):Object
+local function make_constructor(cls, allocate, init, custom_new)
+    if custom_new then
+        return function(_, ...)
+            local self = custom_new(cls, ...)
+            if not rawequal(class_of(self), cls) then fail('__new must return an instance of its class') end
+            init(self, ...)
+            return self
+        end
+    end
+    return function(_, ...)
+        local self = allocate()
+        init(self, ...)
+        return self
+    end
+end
+
 --- Cache initializers and instance metamethods. Ordinary methods stay dynamic.
 ---@generic T:table
 ---@param cls T
@@ -432,7 +476,7 @@ function M.finish(cls)
     for _, key in ipairs({'__pre_init', '__post_init', '__new', '__init'}) do
         if cls[key] ~= nil and type(cls[key]) ~= 'function' then fail(key .. ' must be a function') end
     end
-    local own_init = rawget(cls, '__init')
+    local own_init = rawget(cls, '__init') --[[@as (fun(self:Object, ...:any))?]]
     if state.opts.init == true and own_init then fail('init=true conflicts with custom __init') end
     local init = make_initializer(cls, state)
     local selected_init = init
@@ -471,7 +515,11 @@ function M.finish(cls)
     if state.generated_eq then rawset(cls, '__eq', state.generated_eq) end
     if state.generated_lt then rawset(cls, '__lt', state.generated_lt) end
     if state.generated_le then rawset(cls, '__le', state.generated_le) end
+    local allocate = make_allocator(cls, state.opts.frozen and frozen_mt or mt, state.opts.frozen)
+    state.allocate = allocate
+    state.constructor = make_constructor(cls, allocate, selected_init, state.allocator)
     state.finished = true
+    getmetatable(cls).__call = state.constructor
     return cls
 end
 
@@ -481,22 +529,13 @@ end
 ---@return T
 function M.allocate(cls)
     M.finish(cls)
-    local state = state_of(cls)
-    if state.opts.frozen then
-        return setmetatable({__class = cls, __dict = {}}, state.frozen_mt)
-    end
-    return setmetatable({__class = cls}, state.mutable_mt)
+    return assert(state_of(cls).allocate)()
 end
 
 ---@param cls Class
 local function construct(cls, ...)
     M.finish(cls)
-    local state = state_of(cls)
-    local self
-    if state.allocator then self = state.allocator(cls, ...) else self = M.allocate(cls) --[[@as Object]] end
-    if not rawequal(class_of(self), cls) then fail('__new must return an instance of its class') end
-    assert(state.initializer)(self, ...)
-    return self
+    return assert(state_of(cls).constructor)(cls, ...)
 end
 
 --- Define an independent class with an ordered Field array, then add shared methods.

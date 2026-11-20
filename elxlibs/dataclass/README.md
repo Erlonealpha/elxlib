@@ -176,5 +176,7 @@ independent convention and single-parent chain. They do not integrate with
 
 This version does not provide assignment hooks, field aliases/keyword-only
 fields, `takes_self` factories, slots, hash generation or recursive export.
-Constructor/value functions are shared per class and interpret its schema;
-there is no runtime source generation or measured speed guarantee.
+Constructor/value functions are shared per class. Class completion selects a
+cached allocator and constructor for its storage and custom hooks; initialization
+uses the field schema and a precomputed validator list. There is no runtime
+source generation or general speed guarantee.
