@@ -1,4 +1,4 @@
--- This file is part of libsElx and is released under the terms of the MIT license.
+-- This file is part of elxlib and is released under the terms of the MIT license.
 -- Copyright (C) 2025 ErloneAlpha
 
 -- This file is the main module of the std library. It provides some basic functions and classes.
