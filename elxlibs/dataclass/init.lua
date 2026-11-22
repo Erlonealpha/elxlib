@@ -7,95 +7,104 @@ local unpack_values = unpack
 
 ---@class Sentinel
 local function sentinel(name)
-    return setmetatable({}, {__tostring = function() return name end})
+    return setmetatable({}, { __tostring = function () return name end })
 end
 
 M.MISSING = sentinel('dataclass.MISSING')
 M.NIL = sentinel('dataclass.NIL')
 
 ---@class FieldOptions
----@field default any?
----@field factory (fun():any)?
----@field init boolean?
----@field eq boolean?
----@field order boolean?
----@field repr boolean?
----@field converter (fun(value:any):any)?
----@field validator (fun(self:Object, field:Field, value:any))?
----@field metadata table?
+---@field default   any?
+---@field factory   (fun(): any)?
+---@field init      boolean?
+---@field eq        boolean?
+---@field order     boolean?
+---@field repr      boolean?
+---@field converter (fun(value: any): any)?
+---@field validator (fun(self: Object, field: Field, value: any))?
+---@field metadata  table?
 
 ---@class Field
----@field name string
----@field default any
----@field factory (fun():any)?
----@field init boolean
----@field eq boolean
----@field order boolean
----@field repr boolean
----@field converter (fun(value:any):any)?
----@field validator (fun(self:Object, field:Field, value:any))?
----@field metadata table?
----@field __type 'dataclass.Field'
+---@field name      string
+---@field default   any
+---@field factory   (fun(): any)?
+---@field init      boolean
+---@field eq        boolean
+---@field order     boolean
+---@field repr      boolean
+---@field converter (fun(value: any): any)?
+---@field validator (fun(self: Object, field: Field, value: any))?
+---@field metadata  table?
+---@field __type    'dataclass.Field'
 
 ---@class Options
----@field frozen boolean?
----@field eq boolean?
----@field order boolean?
+---@field frozen  boolean?
+---@field eq      boolean?
+---@field order   boolean?
 ---@field kw_init boolean?
----@field repr boolean?
----@field init boolean?
+---@field repr    boolean?
+---@field init    boolean?
 
 ---@class Object
----@field __class Class
----@field __dict table<string, any>? Frozen backing storage; raw access is trusted.
----@field __dataclass_init fun(self:self, ...:any)
----@field __pre_init (fun(self:self))?
----@field __post_init (fun(self:self))?
+---@field __class          Class
+---@field __dict           table<string, any>?       Frozen backing storage; raw access is trusted.
+---@field __dataclass_init fun(self: self, ...: any)
+---@field __pre_init       (fun(self: self))?
+---@field __post_init      (fun(self: self))?
 
 ---@class Class
----@field __name string
----@field __parent Class?
----@field __dataclass State
----@field __dataclass_init (fun(self:Object, ...:any))?
----@field __init (fun(self:Object, ...:any))?
----@field __new (fun(cls:Class, ...:any):Object)?
----@field [string] any
----@overload fun(...:any):Object
+---@field __name           string
+---@field __parent         Class?
+---@field __dataclass      State
+---@field __dataclass_init (fun(self: Object, ...: any))?
+---@field __init           (fun(self: Object, ...: any))?
+---@field __new            (fun(cls: Class, ...: any): Object)?
+---@field [string]         any
+---@overload fun(...: any): Object
 
 ---@class State
----@field fields Field[]
----@field by_name table<string, Field>
----@field inputs Field[]
----@field opts Options
----@field finished boolean
----@field mutable_mt table?
----@field frozen_mt table?
----@field initializer (fun(self:Object, ...:any))?
----@field allocator (fun(cls:Class, ...:any):Object)?
----@field allocate (fun():Object)?
----@field constructor (fun(cls:Class, ...:any):Object)?
+---@field fields       Field[]
+---@field by_name      table<string, Field>
+---@field inputs       Field[]
+---@field opts         Options
+---@field finished     boolean
+---@field mutable_mt   table?
+---@field frozen_mt    table?
+---@field initializer  (fun(self: Object, ...: any))?
+---@field allocator    (fun(cls: Class, ...: any): Object)?
+---@field allocate     (fun(): Object)?
+---@field constructor  (fun(cls: Class, ...: any): Object)?
 ---@field generated_eq function?
 ---@field generated_lt function?
 ---@field generated_le function?
----@field less function?
----@field less_equal function?
+---@field less         function?
+---@field less_equal   function?
 
 local field_keys = {
-    default = true, factory = true, init = true, eq = true, order = true,
-    repr = true, converter = true, validator = true, metadata = true,
+    default = true,
+    factory = true,
+    init = true,
+    eq = true,
+    order = true,
+    repr = true,
+    converter = true,
+    validator = true,
+    metadata = true
 }
-local option_keys = {frozen = true, eq = true, order = true, kw_init = true, repr = true, init = true}
+local option_keys = { frozen = true, eq = true, order = true, kw_init = true, repr = true, init = true }
 
 local function fail(message)
     error('dataclass: ' .. message, 3)
 end
 
----@generic T:table
+---@generic T: table
 ---@param t T
 ---@return T
 local function copy(t)
     local result = {}
-    for k, v in pairs(t) do result[k] = v end
+    for k, v in pairs(t) do
+        result[k] = v
+    end
     return result
 end
 
@@ -120,7 +129,7 @@ end
 
 --- Omitted default is required; an explicitly passed nil is a nil default.
 ---@param name string
----@param ... any
+---@param ...  any
 ---@return Field
 local function new_field(name, ...)
     if type(name) ~= 'string' or name == '' or name:sub(1, 2) == '__' then
@@ -130,14 +139,16 @@ local function new_field(name, ...)
     if count > 2 then fail('field accepts default and options only') end
     local value, supplied_opts = ...
     local opts = supplied_opts
-    if opts == nil then opts = {} end
+    if opts == nil then
+        opts = {}
+    end
     check_options(opts, field_keys)
     local has_default = rawget(opts, 'default') ~= nil
     if has_default and opts.factory ~= nil then fail('default and factory conflict for ' .. name) end
     if value ~= nil and (has_default or opts.factory ~= nil) then
         fail('duplicate default for ' .. name)
     end
-    for _, key in ipairs({'factory', 'converter', 'validator'}) do
+    for _, key in ipairs({ 'factory', 'converter', 'validator' }) do
         if opts[key] ~= nil and type(opts[key]) ~= 'function' then fail(key .. ' must be a function') end
     end
     if opts.metadata ~= nil and type(opts.metadata) ~= 'table' then fail('metadata must be a table') end
@@ -149,15 +160,22 @@ local function new_field(name, ...)
     end
     local eq = boolean_option(opts, 'eq', true)
     return {
-        __type = 'dataclass.Field', name = name, default = default, factory = opts.factory,
-        init = boolean_option(opts, 'init', true), eq = eq,
-        order = boolean_option(opts, 'order', eq), repr = boolean_option(opts, 'repr', true),
-        converter = opts.converter, validator = opts.validator, metadata = opts.metadata,
+        __type = 'dataclass.Field',
+        name = name,
+        default = default,
+        factory = opts.factory,
+        init = boolean_option(opts, 'init', true),
+        eq = eq,
+        order = boolean_option(opts, 'order', eq),
+        repr = boolean_option(opts, 'repr', true),
+        converter = opts.converter,
+        validator = opts.validator,
+        metadata = opts.metadata
     }
 end
 
 -- The implementation needs varargs to distinguish omitted and explicit nil defaults.
----@type fun(name:string, default?:any, opts?:FieldOptions):Field
+---@type fun(name: string, default?: any, opts?: FieldOptions): Field
 M.field = new_field
 
 ---@param value any
@@ -190,7 +208,7 @@ local function require_instance(value)
     return assert(cls)
 end
 
----@param cls table
+---@param cls    table
 ---@param parent table
 ---@return boolean
 function M.issubclass(cls, parent)
@@ -204,7 +222,7 @@ function M.issubclass(cls, parent)
 end
 
 ---@param value any
----@param cls table
+---@param cls   table
 ---@return boolean
 function M.isinstance(value, cls)
     state_of(cls)
@@ -229,7 +247,7 @@ local function data_of(self)
     return rawget(self, '__dict') or self
 end
 
----@param cls Class
+---@param cls    Class
 ---@param fields Field[]
 local function schema(cls, fields)
     if type(fields) ~= 'table' then fail('fields must be an ordered array') end
@@ -301,9 +319,9 @@ local function check_named(state, values)
     end
 end
 
----@param cls Class
+---@param cls   Class
 ---@param state State
----@return fun(self:Object, ...:any)
+---@return fun(self: Object, ...: any)
 local function make_initializer(cls, state)
     local pre, post = cls.__pre_init, cls.__post_init
     local keyword = state.opts.kw_init
@@ -314,7 +332,7 @@ local function make_initializer(cls, state)
     for _, f in ipairs(fields) do
         if f.validator then validators[#validators + 1] = f end
     end
-    return function(self, ...)
+    return function (self, ...)
         local n = select('#', ...)
         local values
         if keyword then
@@ -323,7 +341,7 @@ local function make_initializer(cls, state)
             check_named(state, values)
         else
             if n > input_count then fail('too many positional arguments') end
-            values = {...}
+            values = { ... }
         end
         if pre then pre(self) end
         local data = data_of(self)
@@ -341,7 +359,11 @@ local function make_initializer(cls, state)
                     present = index <= n and not rawequal(value, M.MISSING)
                 end
             end
-            if present then value = decode_nil(value) else value = default_value(f) end
+            if present then
+                value = decode_nil(value)
+            else
+                value = default_value(f)
+            end
             if f.converter then value = f.converter(value) end
             rawset(data, f.name, value)
         end
@@ -352,10 +374,10 @@ local function make_initializer(cls, state)
     end
 end
 
----@param cls Class
+---@param cls   Class
 ---@param state State
 local function make_eq(cls, state)
-    return function(a, b)
+    return function (a, b)
         if not rawequal(class_of(a), cls) or not rawequal(class_of(b), cls) then return false end
         for _, f in ipairs(state.fields) do
             if f.eq and a[f.name] ~= b[f.name] then return false end
@@ -364,10 +386,10 @@ local function make_eq(cls, state)
     end
 end
 
----@param cls Class
+---@param cls   Class
 ---@param state State
 local function make_order(cls, state, inclusive)
-    return function(a, b)
+    return function (a, b)
         if not rawequal(class_of(a), cls) or not rawequal(class_of(b), cls) then
             fail('ordering requires instances of the same class')
         end
@@ -392,7 +414,7 @@ local function generated_less_equal(a, b)
     return assert(state_of(cls).less_equal)(a, b)
 end
 
----@param cls Class
+---@param cls   Class
 ---@param state State
 local function make_repr(cls, state)
     local active = {}
@@ -407,7 +429,7 @@ local function make_repr(cls, state)
         end
         return cls.__name .. '(' .. table.concat(parts, ', ') .. ')'
     end
-    return function(self)
+    return function (self)
         if active[self] then return '...' end
         active[self] = true
         local ok, result = pcall(render, self)
@@ -418,8 +440,8 @@ local function make_repr(cls, state)
 end
 
 local metamethods = {
-    '__tostring', '__add', '__sub', '__mul', '__div', '__mod', '__pow', '__unm',
-    '__concat', '__lt', '__le', '__len', '__call', '__eq',
+    '__tostring', '__add', '__sub', '__mul', '__div', '__mod', '__pow', '__unm', '__concat', '__lt', '__le', '__len',
+    '__call', '__eq'
 }
 
 ---@param cls Class
@@ -427,39 +449,40 @@ local function custom_meta(cls, key)
     while cls do
         local value = rawget(cls, key)
         local state = state_of(cls)
-        if value ~= nil and value ~= state.generated_eq and value ~= state.generated_lt
-            and value ~= state.generated_le then return value end
+        if value ~= nil and value ~= state.generated_eq and value ~= state.generated_lt and value ~= state.generated_le then
+            return value
+        end
         cls = rawget(cls, '__parent')
     end
 end
 
 ---@param cls Class
----@param mt table
+---@param mt  table
 local function make_allocator(cls, mt, frozen)
     if frozen then
-        return function()
-            return setmetatable({__class = cls, __dict = {}}, mt)
+        return function ()
+            return setmetatable({ __class = cls, __dict = {} }, mt)
         end
     end
-    return function()
-        return setmetatable({__class = cls}, mt)
+    return function ()
+        return setmetatable({ __class = cls }, mt)
     end
 end
 
----@param cls Class
----@param allocate fun():Object
----@param init fun(self:Object, ...:any)
----@param custom_new? fun(cls:Class, ...:any):Object
+---@param cls         Class
+---@param allocate    fun(): Object
+---@param init        fun(self: Object, ...: any)
+---@param custom_new? fun(cls: Class, ...: any): Object
 local function make_constructor(cls, allocate, init, custom_new)
     if custom_new then
-        return function(_, ...)
+        return function (_, ...)
             local self = custom_new(cls, ...)
             if not rawequal(class_of(self), cls) then fail('__new must return an instance of its class') end
             init(self, ...)
             return self
         end
     end
-    return function(_, ...)
+    return function (_, ...)
         local self = allocate()
         init(self, ...)
         return self
@@ -467,13 +490,13 @@ local function make_constructor(cls, allocate, init, custom_new)
 end
 
 --- Cache initializers and instance metamethods. Ordinary methods stay dynamic.
----@generic T:table
+---@generic T: table
 ---@param cls T
 ---@return T
 function M.finish(cls)
     local state = state_of(cls)
     if state.finished then return cls end
-    for _, key in ipairs({'__pre_init', '__post_init', '__new', '__init'}) do
+    for _, key in ipairs({ '__pre_init', '__post_init', '__new', '__init' }) do
         if cls[key] ~= nil and type(cls[key]) ~= 'function' then fail(key .. ' must be a function') end
     end
     local own_init = rawget(cls, '__init') --[[@as (fun(self:Object, ...:any))?]]
@@ -481,9 +504,9 @@ function M.finish(cls)
     local init = make_initializer(cls, state)
     local selected_init = init
     if state.opts.init == false or (state.opts.init == nil and own_init) then
-        selected_init = own_init or function() end
+        selected_init = own_init or function () end
     end
-    local mt = {__index = cls}
+    local mt = { __index = cls }
     for _, key in ipairs(metamethods) do
         local value = custom_meta(cls, key)
         if value ~= nil then
@@ -524,7 +547,7 @@ function M.finish(cls)
 end
 
 --- Allocate without initializing; intended for a custom __new.
----@generic T:table
+---@generic T: table
 ---@param cls T
 ---@return T
 function M.allocate(cls)
@@ -540,33 +563,38 @@ end
 
 --- Define an independent class with an ordered Field array, then add shared methods.
 ---@generic T
----@param name `T`
+---@param name    `T`
 ---@param parent? table
----@param opts? Options
----@return fun(fields:Field[]):T
+---@param opts?   Options
+---@return fun(fields: Field[]): T
 function M.new(name, parent, opts)
     if type(name) ~= 'string' or name == '' then fail('class name must be a nonempty string') end
     if parent ~= nil then state_of(parent) end
-    if opts == nil then opts = {} end
+    if opts == nil then
+        opts = {}
+    end
     check_options(opts, option_keys)
     local config = {
         frozen = boolean_option(opts, 'frozen', false) or (parent and state_of(parent).opts.frozen) or false,
-        eq = boolean_option(opts, 'eq', true), order = boolean_option(opts, 'order', false),
-        kw_init = boolean_option(opts, 'kw_init', false), repr = boolean_option(opts, 'repr', true),
-        init = boolean_option(opts, 'init', nil),
+        eq = boolean_option(opts, 'eq', true),
+        order = boolean_option(opts, 'order', false),
+        kw_init = boolean_option(opts, 'kw_init', false),
+        repr = boolean_option(opts, 'repr', true),
+        init = boolean_option(opts, 'init', nil)
     }
     if config.order and not config.eq then fail('order requires eq=true') end
     local used = false
-    return function(fields)
+    return function (fields)
         if used then fail('class definition builder has already been used') end
         ---@type Class
         local cls = {
-            __name = name, __parent = parent,
-            __dataclass = {fields = {}, by_name = {}, inputs = {}, opts = config, finished = false},
+            __name = name,
+            __parent = parent,
+            __dataclass = { fields = {}, by_name = {}, inputs = {}, opts = config, finished = false }
         }
         schema(cls, fields)
         used = true
-        return setmetatable(cls, {__index = parent, __call = construct})
+        return setmetatable(cls, { __index = parent, __call = construct })
     end
 end
 
@@ -575,7 +603,9 @@ end
 ---@return Field[]
 function M.fields(cls)
     local result = {}
-    for i, f in ipairs(state_of(cls).fields) do result[i] = copy(f) end
+    for i, f in ipairs(state_of(cls).fields) do
+        result[i] = copy(f)
+    end
     return result
 end
 
@@ -587,7 +617,7 @@ function M.isfrozen(self)
 end
 
 --- Move raw public fields to frozen storage, preserving identity and nested values.
----@generic T:table
+---@generic T: table
 ---@param self T
 ---@return T
 function M.freeze(self)
@@ -597,14 +627,16 @@ function M.freeze(self)
     for key, value in pairs(self) do
         if key ~= '__class' then dict[key] = value end
     end
-    for key in pairs(dict) do rawset(self, key, nil) end
+    for key in pairs(dict) do
+        rawset(self, key, nil)
+    end
     rawset(self, '__dict', dict)
     setmetatable(self, state.frozen_mt)
     return self
 end
 
 --- Shallow export of declared fields. keep_nil encodes nil as dataclass.NIL.
----@param self table
+---@param self      table
 ---@param keep_nil? boolean
 ---@return table<string, any>
 function M.asdict(self, keep_nil)
@@ -620,20 +652,26 @@ end
 
 --- Reconstruct with init fields and changes; converters, validators and hooks rerun.
 ---@generic T
----@param self T
+---@param self     T
 ---@param changes? table<string, any>
 ---@return T
 function M.replace(self, changes)
     local cls = require_instance(self)
     local state = state_of(cls)
-    if changes == nil then changes = {} end
+    if changes == nil then
+        changes = {}
+    end
     check_named(state, changes)
     local values = {}
     for i, f in ipairs(state.inputs) do
         local value = rawget(changes, f.name)
         if value == nil then value = self[f.name] end
         if value == nil then value = M.NIL end
-        if state.opts.kw_init then values[f.name] = value else values[i] = value end
+        if state.opts.kw_init then
+            values[f.name] = value
+        else
+            values[i] = value
+        end
     end
     if state.opts.kw_init then return cls(values) end
     return cls(unpack_values(values, 1, #state.inputs))
