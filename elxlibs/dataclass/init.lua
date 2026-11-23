@@ -54,19 +54,22 @@ M.NIL = sentinel('dataclass.NIL')
 ---@field __type    'dataclass.Field'
 
 ---@class Options
----@field frozen  boolean?
----@field eq      boolean?
----@field order   boolean?
----@field kw_init boolean?
----@field repr    boolean?
----@field init    boolean?
+---@field frozen     boolean? default to `false`
+---@field eq         boolean? default to `true`
+---@field order      boolean? default to `false`
+---@field kw_init    boolean? default to `false`
+---@field repr       boolean? default to `true`
+---@field init       boolean? default to `nil`
+---@field dict       boolean? default to `false`; frozen also selects dict storage without changing this option
+---@field fields_set boolean? default to `false`; expose ordered field names on the class
 
 ---@class Object
 ---@field __class          Class
----@field __dict           table<string, any>?       Frozen backing storage; raw access is trusted.
+---@field __dict           table<string, any>?       Dict backing storage; raw access is trusted.
 ---@field __dataclass_init fun(self: self, ...: any)
 ---@field __pre_init       (fun(self: self))?
 ---@field __post_init      (fun(self: self))?
+---@field __fields_set     (string[])?
 
 ---@class Class
 ---@field __name           string
@@ -75,26 +78,29 @@ M.NIL = sentinel('dataclass.NIL')
 ---@field __dataclass_init (fun(self: Object, ...: any))?
 ---@field __init           (fun(self: Object, ...: any))?
 ---@field __new            (fun(cls: Class, ...: any): Object)?
+---@field __fields_set     (string[])?
 ---@field [string]         any
 ---@overload fun(...: any): Object
 
 ---@class State
----@field fields       Field[]
----@field by_name      table<string, Field>
----@field inputs       Field[]
----@field opts         Options
----@field finished     boolean
----@field mutable_mt   table?
----@field frozen_mt    table?
----@field initializer  (fun(self: Object, ...: any))?
----@field allocator    (fun(cls: Class, ...: any): Object)?
----@field allocate     (fun(): Object)?
----@field constructor  (fun(cls: Class, ...: any): Object)?
----@field generated_eq function?
----@field generated_lt function?
----@field generated_le function?
----@field less         function?
----@field less_equal   function?
+---@field fields            Field[]
+---@field by_name           table<string, Field>
+---@field inputs            Field[]
+---@field opts              Options
+---@field finished          boolean
+---@field mutable_mt        table?
+---@field mutable_mt_getter (fun(): table)?
+---@field frozen_mt         table?
+---@field frozen_mt_getter  (fun(): table)?
+---@field initializer       (fun(self: Object, ...: any))?
+---@field allocator         (fun(cls: Class, ...: any): Object)?
+---@field allocate          (fun(): Object)?
+---@field constructor       (fun(cls: Class, ...: any): Object)?
+---@field generated_eq      function?
+---@field generated_lt      function?
+---@field generated_le      function?
+---@field less              function?
+---@field less_equal        function?
 
 local field_keys = {
     default = true,
@@ -108,12 +114,8 @@ local field_keys = {
     metadata = true
 }
 local option_keys = {
-    frozen = true,
-    eq = true,
-    order = true,
-    kw_init = true,
-    repr = true,
-    init = true
+    frozen = true, eq = true, order = true, kw_init = true, repr = true, init = true,
+    dict = true, fields_set = true
 }
 
 local function fail(message)
@@ -231,6 +233,9 @@ end
 ---@param cls Class
 ---@return State
 local function state_of(cls)
+    if not M.isclass(cls) then
+        raise('expected a dataclass class')
+    end
     return rawget(cls, '__dataclass')
 end
 
@@ -240,7 +245,10 @@ local function class_of(value)
     if type(value) ~= 'table' then
         return nil
     end
-    return rawget(value, '__class')
+    local cls = rawget(value, '__class')
+    if M.isclass(cls) then
+        return cls
+    end
 end
 
 ---@param value any
@@ -278,13 +286,21 @@ function M.isinstance(value, cls)
 end
 
 ---@param self Object
-local function frozen_index(self, key)
+local function dict_index(self, key)
     local dict = assert(rawget(self, '__dict'))
     local value = dict[key]
     if value ~= nil then
         return value
     end
     return rawget(self, '__class')[key]
+end
+
+---@param self Object
+---@param key  string
+---@param val  any
+local function index_write(self, key, val)
+    local dict = assert(rawget(self, '__dict'))
+    rawset(dict, key, val)
 end
 
 local function frozen_write(_, key)
@@ -390,6 +406,15 @@ local function check_named(state, values)
             raise('field is not an init field: ' .. key)
         end
     end
+end
+
+---@param fields Field[]
+local function make_fields_set(fields)
+    local set = {}
+    for i = 1, #fields do
+        set[i] = fields[i].name
+    end
+    return set
 end
 
 ---@param cls   Class
@@ -535,20 +560,8 @@ local function make_repr(cls, state)
 end
 
 local metamethods = {
-    '__tostring',
-    '__add',
-    '__sub',
-    '__mul',
-    '__div',
-    '__mod',
-    '__pow',
-    '__unm',
-    '__concat',
-    '__lt',
-    '__le',
-    '__len',
-    '__call',
-    '__eq'
+    '__tostring', '__add', '__sub', '__mul', '__div', '__mod', '__pow', '__unm', '__concat', '__lt', '__le', '__len',
+    '__call', '__eq'
 }
 
 ---@param cls Class
@@ -563,10 +576,11 @@ local function custom_meta(cls, key)
     end
 end
 
----@param cls Class
----@param mt  table
-local function make_allocator(cls, mt, frozen)
-    if frozen then
+---@param cls  Class
+---@param mt   table
+---@param dict boolean?
+local function make_allocator(cls, mt, dict)
+    if dict then
         return function ()
             return setmetatable({ __class = cls, __dict = {} }, mt)
         end
@@ -598,30 +612,36 @@ local function make_constructor(cls, allocate, init, custom_new)
     end
 end
 
---- Cache initializers and instance metamethods. Ordinary methods stay dynamic.
----@generic T: table
----@param cls T
+local function_check_fields = { '__pre_init', '__post_init', '__new', '__init' }
+
+---@generic T: Class
+---@param cls   T
+---@param state State?
 ---@return T
-function M.finish(cls)
-    local state = state_of(cls)
+local function _finish(cls, state)
+    state = state or state_of(cls)
     if state.finished then
         return cls
     end
-    for _, key in ipairs({ '__pre_init', '__post_init', '__new', '__init' }) do
+
+    for _, key in ipairs(function_check_fields) do
         if cls[key] ~= nil and type(cls[key]) ~= 'function' then
             raise(key .. ' must be a function')
         end
     end
+
+    local opts = state.opts
     local own_init = rawget(cls, '__init') --[[@as (fun(self:Object, ...:any))?]]
-    if state.opts.init == true and own_init then
+    if opts.init == true and own_init then
         raise('init=true conflicts with custom __init')
     end
     local init = make_initializer(cls, state)
     local selected_init = init
-    if state.opts.init == false or (state.opts.init == nil and own_init) then
+    if opts.init == false or (opts.init == nil and own_init) then
         selected_init = own_init or function () end
     end
-    local mt = { __index = cls }
+
+    local mt = {}
     for _, key in ipairs(metamethods) do
         local value = custom_meta(cls, key)
         if value ~= nil then
@@ -631,30 +651,52 @@ function M.finish(cls)
             mt[key] = value
         end
     end
-    if state.opts.eq then
+    if opts.eq then
         if mt.__eq then
             raise('eq=true conflicts with custom __eq; use eq=false')
         end
         mt.__eq = make_eq(cls, state)
     end
-    if state.opts.order then
+    if opts.order then
         if mt.__lt or mt.__le then
             raise('order=true conflicts with custom ordering')
         end
         mt.__lt, mt.__le = generated_less, generated_less_equal
     end
-    if state.opts.repr and not mt.__tostring then
+    if opts.repr and not mt.__tostring then
         mt.__tostring = make_repr(cls, state)
     end
-    local frozen_mt = copy(mt)
-    frozen_mt.__index, frozen_mt.__newindex = frozen_index, frozen_write
-    state.mutable_mt, state.frozen_mt = mt, frozen_mt
-    state.initializer, state.allocator = selected_init, cls.__new
-    state.generated_eq = state.opts.eq and mt.__eq or nil
-    state.generated_lt = state.opts.order and mt.__lt or nil
-    state.generated_le = state.opts.order and mt.__le or nil
-    if state.opts.order then
-        state.less, state.less_equal = make_order(cls, state, false), make_order(cls, state, true)
+
+    if opts.frozen then
+        mt.__index = dict_index
+        mt.__newindex = frozen_write
+        state.frozen_mt = mt
+        state.mutable_mt_getter = function ()
+            local mt_ = copy(state.frozen_mt)
+            mt_.__index = dict_index
+            mt_.__newindex = index_write
+            return mt_
+        end
+    else
+        mt.__index = opts.dict and dict_index or cls
+        mt.__newindex = opts.dict and index_write or nil
+        state.mutable_mt = mt
+        state.frozen_mt_getter = function ()
+            local mt_ = copy(state.mutable_mt)
+            mt_.__index = dict_index
+            mt_.__newindex = frozen_write
+            return mt_
+        end
+    end
+
+    state.initializer = selected_init
+    state.allocator = cls.__new
+    state.generated_eq = opts.eq and mt.__eq or nil
+    state.generated_lt = opts.order and mt.__lt or nil
+    state.generated_le = opts.order and mt.__le or nil
+    if opts.order then
+        state.less = make_order(cls, state, false)
+        state.less_equal = make_order(cls, state, true)
     end
     rawset(cls, '__dataclass_init', init)
     if selected_init == init then
@@ -669,7 +711,11 @@ function M.finish(cls)
     if state.generated_le then
         rawset(cls, '__le', state.generated_le)
     end
-    local allocate = make_allocator(cls, state.opts.frozen and frozen_mt or mt, state.opts.frozen)
+    if opts.fields_set then
+        rawset(cls, '__fields_set', make_fields_set(state.fields))
+    end
+
+    local allocate = make_allocator(cls, mt, opts.dict or opts.frozen)
     state.allocate = allocate
     state.constructor = make_constructor(cls, allocate, selected_init, state.allocator)
     state.finished = true
@@ -677,19 +723,29 @@ function M.finish(cls)
     return cls
 end
 
+--- Cache initializers and instance metamethods. Ordinary methods stay dynamic.
+---@generic T: table
+---@param cls T
+---@return T
+function M.finish(cls)
+    return _finish(cls)
+end
+
 --- Allocate without initializing; intended for a custom __new.
 ---@generic T: table
 ---@param cls T
 ---@return T
 function M.allocate(cls)
-    M.finish(cls)
-    return assert(state_of(cls).allocate)()
+    local state = state_of(cls)
+    _finish(cls, state)
+    return assert(state.allocate)()
 end
 
 ---@param cls Class
 local function construct(cls, ...)
-    M.finish(cls)
-    return assert(state_of(cls).constructor)(cls, ...)
+    local state = state_of(cls)
+    _finish(cls, state)
+    return assert(state.constructor)(cls, ...)
 end
 
 --- Define an independent class with an ordered Field array, then add shared methods.
@@ -702,20 +758,20 @@ function M.new(name, parent, opts)
     if type(name) ~= 'string' or name == '' then
         raise('class name must be a nonempty string')
     end
-    if parent ~= nil then
-        state_of(parent)
-    end
+    local parent_state = parent ~= nil and state_of(parent) or nil
     if opts == nil then
         opts = {}
     end
     check_options(opts, option_keys)
     local config = {
-        frozen = boolean_option(opts, 'frozen', false) or (parent and state_of(parent).opts.frozen) or false,
+        frozen = boolean_option(opts, 'frozen', false) or (parent_state and parent_state.opts.frozen) or false,
         eq = boolean_option(opts, 'eq', true),
         order = boolean_option(opts, 'order', false),
         kw_init = boolean_option(opts, 'kw_init', false),
         repr = boolean_option(opts, 'repr', true),
-        init = boolean_option(opts, 'init', nil)
+        init = boolean_option(opts, 'init', nil),
+        dict = boolean_option(opts, 'dict', false),
+        fields_set = boolean_option(opts, 'fields_set', false)
     }
     if config.order and not config.eq then
         raise('order requires eq=true')
@@ -751,8 +807,8 @@ end
 ---@param self table
 ---@return boolean
 function M.isfrozen(self)
-    require_instance(self)
-    return rawget(self, '__dict') ~= nil
+    local state = state_of(require_instance(self))
+    return state.frozen_mt ~= nil and rawequal(getmetatable(self), state.frozen_mt)
 end
 
 --- Move raw public fields to frozen storage, preserving identity and nested values.
@@ -761,19 +817,25 @@ end
 ---@return T
 function M.freeze(self)
     local state = state_of(require_instance(self))
-    if rawget(self, '__dict') ~= nil then
+    if state.frozen_mt ~= nil and rawequal(getmetatable(self), state.frozen_mt) then
         return self
     end
-    local dict = {}
-    for key, value in pairs(self) do
-        if key ~= '__class' then
-            dict[key] = value
+    if state.frozen_mt == nil then
+        state.frozen_mt = assert(state.frozen_mt_getter)()
+    end
+    local dict = rawget(self, '__dict')
+    if dict == nil then
+        dict = {}
+        for key, value in pairs(self) do
+            if key ~= '__class' then
+                dict[key] = value
+            end
         end
+        for key in pairs(dict) do
+            rawset(self, key, nil)
+        end
+        rawset(self, '__dict', dict)
     end
-    for key in pairs(dict) do
-        rawset(self, key, nil)
-    end
-    rawset(self, '__dict', dict)
     setmetatable(self, state.frozen_mt)
     return self
 end

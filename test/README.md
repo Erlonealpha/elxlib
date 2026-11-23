@@ -61,7 +61,7 @@ Current groups:
 | Group | Coverage | Assertions |
 | --- | --- | --- |
 | [std](test_std/README.md) | Utilities, classes, reflection and exceptions | 115 |
-| [dataclass](test_dataclass/README.md) | Independent definitions, initialization, freeze, comparison and data operations | 225 |
+| [dataclass](test_dataclass/README.md) | Independent definitions, initialization, direct/dict storage, freeze, comparison and data operations | 316 |
 | [json](test_json/README.md) | Codec round trips, null placeholders and malformed input | 64 |
 | [hashlib](test_hashlib/README.md) | Digest vectors, streaming, HMAC, BLAKE and Base64 | 145 |
 | [fs](test_fs/README.md) | Subprocess operations, flags, failures and stat parsing | 83 |

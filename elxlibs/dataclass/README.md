@@ -77,7 +77,13 @@ is supplied.
 ## Initialization and class completion
 
 Class options default to `frozen=false`, `eq=true`, `order=false`, `repr=true`
-and `kw_init=false`. `order=true` requires `eq=true`. Unknown options are rejected.
+and `kw_init=false`. `dict` and `fields_set` default to false. `order=true`
+requires `eq=true`. Unknown options are rejected.
+
+`fields_set=true` collects an ordered field-name array as `cls.__fields_set` at
+finish, including inherited and `init=false` fields. Instances access the same
+array through their class; this is schema metadata, not a record of supplied
+constructor arguments. A subclass enabling it gets its own merged array.
 
 `finish(cls)` caches the constructor, hooks and supported LuaJIT metamethods.
 First construction calls it automatically. Repeated finish returns the same
@@ -124,15 +130,25 @@ run converters, validators or field checks. Extra fields are allowed.
 As with ordinary Lua tables, a nil field does not shadow a same-name class member;
 keep data field names distinct from shared method names.
 
+`dict=true` selects mutable `__dict` backing storage. Normal reads fall back to
+shared class methods when a dict value is nil, and writes/deletions update the
+dict. Converters and validators still run only during initialization/replacement.
+Dictionary storage alone does not freeze the instance.
+
 `frozen=true` allocates a shell with `__dict` backing storage. Normal writes,
 including deletion and new fields, raise from allocation onward. Generated
 initialization writes internally; ordinary writes in pre/post/custom init are
 restricted, matching attrs' frozen behavior. A custom init can explicitly call
-`__dataclass_init`. A child of a frozen parent remains frozen.
+`__dataclass_init`. A child of a frozen parent remains frozen. Frozen storage uses
+the dict backend even when `dict=false` or omitted; it does not rewrite that
+option or the caller's options table. Initialization chooses the instance's
+actual storage after pre-init, including when pre-init calls `freeze`.
 
 `freeze(instance)` migrates current raw data fields into backing storage and
 switches the metatable, preserving identity, shared methods and nested references.
-It is shallow and idempotent. `isfrozen(instance)` reports the storage mode.
+Existing dict storage is reused during freeze. It is shallow and idempotent.
+`isfrozen(instance)` reports the instance's current frozen metatable, independently
+of the class's `frozen`/`dict` options. Freezing one instance does not affect peers.
 `rawget` and `pairs` expose the new shell layout after freeze; use `asdict` for
 declared-field traversal. There is no thaw operation.
 
