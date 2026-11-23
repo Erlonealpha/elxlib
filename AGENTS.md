@@ -75,6 +75,8 @@ shared framework back into this repository or modify the submodule implicitly.
 
 ## 4. Coding style and annotations
 
+- Follow [codestyle.md](codestyle.md) for formatting, imports and type examples.
+  `---@namespace` and `---@using` are optional; type names must resolve clearly.
 - Use four spaces and readable local module names. Prefer single-quoted project
   strings in new code; avoid unrelated formatting churn in existing modules.
 - Define instance classes, fields, reusable Options types and constructor
