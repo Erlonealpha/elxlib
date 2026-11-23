@@ -14,61 +14,61 @@ local raise = exception.raise
 local protected = not _G._STD_CLASS_DEBUG
 
 ---@class ClassOptions
----@field dict boolean? Inherit from parent; default false. Full hooks/data descriptors also select dict.
+---@field dict     boolean? Inherit from parent; default false. Full hooks/data descriptors also select dict.
 ---@field abstract boolean? Not inherited.
----@field final boolean? Not inherited.
+---@field final    boolean? Not inherited.
 
 ---@class Descriptor
----@field __get (fun(descriptor:self, instance:object?, owner:class):any)?
----@field __set (fun(descriptor:self, instance:object, value:any))?
+---@field __get (fun(descriptor: self, instance: object?, owner: class): any)?
+---@field __set (fun(descriptor: self, instance: object, value: any))?
 
 ---@class _class_meta
----@field __tostring fun(self:self):string
----@field __add (fun(self:self, other:any):any)?
----@field __sub (fun(self:self, other:any):any)?
----@field __mul (fun(self:self, other:any):any)?
----@field __div (fun(self:self, other:any):any)?
----@field __mod (fun(self:self, other:any):any)?
----@field __pow (fun(self:self, other:any):any)?
----@field __unm (fun(self:self):any)?
----@field __concat (fun(self:self, other:any):any)?
----@field __lt (fun(self:self, other:any):boolean)?
----@field __le (fun(self:self, other:any):boolean)?
----@field __len (fun(self:self):integer)?
----@field __eq (fun(self:self, other:any):boolean)?
----@field __getattr (fun(self:self, key:any):any)?
----@field __getattribute (fun(self:self, key:any):any)?
----@field __setattr (fun(self:self, key:any, value:any))?
----@field __setattribute (fun(self:self, key:any, value:any))?
+---@field __tostring     fun(self: self): string
+---@field __add          (fun(self: self, other: any): any)?
+---@field __sub          (fun(self: self, other: any): any)?
+---@field __mul          (fun(self: self, other: any): any)?
+---@field __div          (fun(self: self, other: any): any)?
+---@field __mod          (fun(self: self, other: any): any)?
+---@field __pow          (fun(self: self, other: any): any)?
+---@field __unm          (fun(self: self): any)?
+---@field __concat       (fun(self: self, other: any): any)?
+---@field __lt           (fun(self: self, other: any): boolean)?
+---@field __le           (fun(self: self, other: any): boolean)?
+---@field __len          (fun(self: self): integer)?
+---@field __eq           (fun(self: self, other: any): boolean)?
+---@field __getattr      (fun(self: self, key: any): any)?
+---@field __getattribute (fun(self: self, key: any): any)?
+---@field __setattr      (fun(self: self, key: any, value: any))?
+---@field __setattribute (fun(self: self, key: any, value: any))?
 
----@class class : _class_meta
----@field __name string
+---@class class: _class_meta
+---@field __name   string
 ---@field __parent class?
----@field __mro class[] Trusted structural metadata.
----@field __dict table<string, any> Shared class members, independent of instance storage.
----@field __call fun(self:self, ...:any...):object
----@overload fun(self:self, ...:any...):object
+---@field __mro    class[]                              Trusted structural metadata.
+---@field __dict   table<string, any>                   Shared class members, independent of instance storage.
+---@field __call   fun(self: self, ...: any...): object
+---@overload fun(self: self, ...: any...): object
 
 ---@class _DescriptorEntry
 ---@field value Descriptor
----@field get function?
----@field set function?
+---@field get   function?
+---@field set   function?
 
 ---@class _ClassState
----@field cls class
----@field opts ClassOptions
----@field finished boolean
----@field dict boolean?
+---@field cls         class
+---@field opts        ClassOptions
+---@field finished    boolean
+---@field dict        boolean?
 ---@field descriptors table<string, _DescriptorEntry>?
----@field metatable table?
----@field allocate (fun():object)?
----@field read (fun(obj:object, key:any):any)? Skip custom hooks; include descriptors.
----@field write (fun(obj:object, key:any, value:any))? Skip custom hooks; include descriptors.
----@field data (fun(obj:object):table)?
+---@field metatable   table?
+---@field allocate    (fun(): object)?
+---@field read        (fun(obj: object, key: any): any)?        Skip custom hooks; include descriptors.
+---@field write       (fun(obj: object, key: any, value: any))? Skip custom hooks; include descriptors.
+---@field data        (fun(obj: object): table)?
 
 ---@class classlib
----@generic T, B:object
----@overload fun(name:`T`, parent?:class, dict?:table<string, any>, opts?:ClassOptions):T
+---@generic T, B: object
+---@overload fun(name: `T`, parent?: class, dict?: table<string, any>, opts?: ClassOptions): T
 local M = {}
 
 ---@not_return
@@ -89,13 +89,11 @@ local function state_of(cls)
     end
 
     local mt = actual_metatable(cls)
-
     if type(mt) ~= 'table' then
         return nil
     end
 
     local state = rawget(mt, '__class_state')
-
     if type(state) == 'table' and rawequal(state.cls, cls) then
         return state
     end
@@ -106,7 +104,6 @@ local function check_class(cls)
     if not state then
         fail('expected a class type')
     end
-
     return state
 end
 
@@ -114,9 +111,7 @@ local function class_of(obj)
     if type(obj) ~= 'table' or state_of(obj) then
         return nil
     end
-
     local cls = rawget(obj, '__class')
-
     if state_of(cls) then
         return cls
     end
@@ -129,7 +124,6 @@ local function lookup(cls, key)
     end
 
     local mro = rawget(cls, '__mro')
-
     for i = 2, #mro do
         value = rawget(mro[i], '__dict')[key]
         if value ~= nil then
@@ -140,21 +134,18 @@ end
 
 local function hook(cls, key)
     local value = lookup(cls, key)
-
     if value == false then
         return nil
     end
-
     if value ~= nil and type(value) ~= 'function' then
         fail(key .. ' must be a function or false')
     end
-
     return value
 end
 
 local meta_names = {
-    '__tostring', '__add', '__sub', '__mul', '__div', '__mod', '__pow', '__unm',
-    '__concat', '__lt', '__le', '__len', '__call', '__eq',
+    '__tostring', '__add', '__sub', '__mul', '__div', '__mod', '__pow', '__unm', '__concat', '__lt', '__le', '__len',
+    '__call', '__eq'
 }
 -- Do not collect table finalizers on LuaJIT's Lua 5.1 runtime.
 local version = tonumber(_VERSION:match('%d+%.%d+')) or 5.1
@@ -163,7 +154,7 @@ if version >= 5.2 then
     meta_names[#meta_names + 1] = '__gc'
 end
 if version >= 5.3 then
-    for _, name in ipairs({'__idiv', '__band', '__bor', '__bxor', '__bnot', '__shl', '__shr'}) do
+    for _, name in ipairs({ '__idiv', '__band', '__bor', '__bxor', '__bnot', '__shl', '__shr' }) do
         meta_names[#meta_names + 1] = name
     end
 end
@@ -179,25 +170,17 @@ local function collect_descriptors(cls)
         for key, value in pairs(rawget(base, '__dict')) do
             if not seen[key] then
                 seen[key] = true
-
                 if type(value) == 'table' then
                     local getter, setter = value.__get, value.__set
-
                     if getter ~= nil or setter ~= nil then
                         if getter ~= nil and type(getter) ~= 'function' then
                             fail('descriptor __get must be a function')
                         end
-
                         if setter ~= nil and type(setter) ~= 'function' then
                             fail('descriptor __set must be a function')
                         end
-
                         result = result or {}
-                        result[key] = {
-                            value = value,
-                            get = getter,
-                            set = setter,
-                        }
+                        result[key] = { value = value, get = getter, set = setter }
                     end
                 end
             end
@@ -219,96 +202,85 @@ end
 -- These builders run once per class. Ordinary access does not test storage mode.
 local function build_read(cls, data, dict, descriptors)
     if descriptors then
-        return function(obj, key)
+        return function (obj, key)
             local descriptor = descriptors[key]
-
             if descriptor and descriptor.set and descriptor.get then
                 return descriptor.get(descriptor.value, obj, cls), true
             end
-            local value = rawget(data(obj), key)
 
+            local value = rawget(data(obj), key)
             if value ~= nil then
                 return value
             end
-
             if descriptor then
                 if descriptor.get then
                     return descriptor.get(descriptor.value, obj, cls), true
                 end
-
                 return descriptor.value, true
             end
 
             return lookup(cls, key)
         end
     elseif dict then
-        return function(obj, key)
+        return function (obj, key)
             local value = rawget(obj, '__dict')[key]
-
             if value ~= nil then
                 return value
             end
-
             return lookup(cls, key)
         end
     end
 
-    return function(obj, key)
+    return function (obj, key)
         local value = rawget(obj, key)
-
         if value ~= nil then
             return value
         end
-
         return lookup(cls, key)
     end
 end
 
 local function build_write(data, dict, descriptors)
     if descriptors then
-        return function(obj, key, value)
+        return function (obj, key, value)
             local descriptor = descriptors[key]
-
             if descriptor and descriptor.set then
                 return descriptor.set(descriptor.value, obj, value)
             end
-
             rawset(data(obj), key, value)
         end
     end
 
     if dict then
-        return function(obj, key, value)
+        return function (obj, key, value)
             rawget(obj, '__dict')[key] = value
         end
     end
 
-    return function(obj, key, value)
+    return function (obj, key, value)
         rawset(obj, key, value)
     end
 end
 
----@type fun(cls:class):_FinishedClassState
+---@type fun(cls: class): _FinishedClassState
 local finish
 local default_new
 
----@class _FinishedClassState : _ClassState
----@field allocate fun():object
----@field read fun(obj:object, key:any):any
----@field write fun(obj:object, key:any, value:any)
----@field data fun(obj:object):table
+---@class _FinishedClassState: _ClassState
+---@field allocate fun(): object
+---@field read     fun(obj: object, key: any): any
+---@field write    fun(obj: object, key: any, value: any)
+---@field data     fun(obj: object): table
 
 ---@param cls class
 ---@return _FinishedClassState
-finish = function(cls)
+finish = function (cls)
     local state = check_class(cls)
-
     if state.finished then
         return state --[[@as _FinishedClassState]]
     end
 
     local parent = rawget(cls, '__parent')
-
     if parent then
         finish(parent)
     end
@@ -345,9 +317,8 @@ finish = function(cls)
     if protected then
         mt.__metatable = 'protected'
     end
-
     if not mt.__tostring then
-        mt.__tostring = function()
+        mt.__tostring = function ()
             return 'object(' .. rawget(cls, '__name') .. ')'
         end
     end
@@ -356,9 +327,8 @@ finish = function(cls)
     if getattribute then
         mt.__index = getattribute
     elseif getattr then
-        mt.__index = function(obj, key)
+        mt.__index = function (obj, key)
             local value, found = read(obj, key)
-
             if found or value ~= nil then
                 return value
             end
@@ -368,7 +338,7 @@ finish = function(cls)
     elseif dict or descriptors then
         mt.__index = read
     else
-        mt.__index = function(_, key)
+        mt.__index = function (_, key)
             return lookup(cls, key)
         end
     end
@@ -376,7 +346,7 @@ finish = function(cls)
     if setattribute then
         mt.__newindex = setattribute
     elseif setattr then
-        mt.__newindex = function(obj, key, value)
+        mt.__newindex = function (obj, key, value)
             if rawget(data(obj), key) ~= nil or lookup(cls, key) ~= nil then
                 return write(obj, key, value)
             end
@@ -387,28 +357,24 @@ finish = function(cls)
         mt.__newindex = write
     end
 
-    ---@type fun():object
+    ---@type fun(): object
     local allocate
 
     if dict then
-        allocate = function()
-            local obj = {
-                __class = cls,
-                __dict = {},
-            }
-
+        allocate = function ()
+            local obj = { __class = cls, __dict = {} }
             return setmetatable(obj, mt)
         end
     else
-        allocate = function()
-            return setmetatable({__class = cls}, mt)
+        allocate = function ()
+            return setmetatable({ __class = cls }, mt)
         end
     end
 
     local cls_mt = actual_metatable(cls) --[[@as table<string, any>]]
 
     if descriptors then
-        cls_mt.__index = function(_, key)
+        cls_mt.__index = function (_, key)
             local descriptor = descriptors[key]
 
             if descriptor and descriptor.get then
@@ -430,20 +396,17 @@ finish = function(cls)
 
     -- Allocation policy is cached; user-defined constructors remain dynamic.
     if state.opts.abstract then
-        cls_mt.__call = function(_cls, ...)
+        cls_mt.__call = function (_cls, ...)
             fail('class is abstract')
         end
     else
-        cls_mt.__call = function(_, ...)
+        cls_mt.__call = function (_, ...)
             local constructor = lookup(cls, '__new')
-
             if constructor ~= default_new then
                 return constructor(cls, ...)
             end
-
             local obj = allocate() --[[@as object]]
             obj:__init(...)
-
             return obj
         end
     end
@@ -451,11 +414,7 @@ finish = function(cls)
     return state --[[@as _FinishedClassState]]
 end
 
-local option_keys = {
-    dict = true,
-    abstract = true,
-    final = true,
-}
+local option_keys = { dict = true, abstract = true, final = true }
 
 local function options(parent, supplied)
     if supplied ~= nil and type(supplied) ~= 'table' then
@@ -465,18 +424,16 @@ local function options(parent, supplied)
     local result = {
         dict = parent and check_class(parent).opts.dict or false,
         abstract = false,
-        final = false,
+        final = false
     }
 
     for key, value in pairs(supplied or {}) do
         if not option_keys[key] then
             fail('unknown class option ' .. tostring(key))
         end
-
         if type(value) ~= 'boolean' then
             fail(key .. ' must be a boolean')
         end
-
         result[key] = value
     end
 
@@ -507,7 +464,6 @@ local function new_class(name, parent, dict, opts, root)
         __mro = {},
     }
     ---@cast cls class
-
     local state = {
         cls = cls,
         opts = options(parent, opts),
@@ -515,7 +471,6 @@ local function new_class(name, parent, dict, opts, root)
     }
 
     cls.__mro[1] = cls
-
     if parent then
         for i, base in ipairs(parent.__mro) do
             cls.__mro[i + 1] = base
@@ -524,19 +479,19 @@ local function new_class(name, parent, dict, opts, root)
 
     local mt = {
         __class_state = state,
-        __index = function(_, key)
+        __index = function (_, key)
             return lookup(cls, key)
         end,
-        __newindex = function(_, key, value)
+        __newindex = function (_, key, value)
             cls.__dict[key] = value
         end,
-        __call = function(_, ...)
+        __call = function (_, ...)
             finish(cls)
             return (actual_metatable(cls) --[[@as table]]).__call(cls, ...)
         end,
-        __tostring = function()
+        __tostring = function ()
             return 'class(' .. rawget(cls, '__name') .. ')'
-        end,
+        end
     }
 
     if protected then
@@ -546,9 +501,9 @@ local function new_class(name, parent, dict, opts, root)
     return setmetatable(cls, mt)
 end
 
----@class object : class
+---@class object: class
 ---@field __class class
----@field __new fun(cls:class):self
+---@field __new   fun(cls: class): self
 local object = new_class('object', nil, {}, nil, true)
 
 function object:__new(...)
@@ -570,23 +525,23 @@ end
 
 M.object = object
 
----@generic T, B:object
+---@generic T, B: object
 ---@[constructor('__init', 'object')]
----@param name `T`
+---@param name    `T`
 ---@param parent? B
----@param dict? table<string, any>
----@param opts? ClassOptions
+---@param dict?   table<string, any>
+---@param opts?   ClassOptions
 ---@return T
----@overload fun(name:`T`, parent:nil, dict?:table<string, any>, opts?:ClassOptions):T
+---@overload fun(name: `T`, parent: nil, dict?: table<string, any>, opts?: ClassOptions): T
 function M.new(name, parent, dict, opts)
     return new_class(name, parent, dict, opts)
 end
 
 ---@generic T
----@param name `T`
+---@param name    `T`
 ---@param parent? class
----@param dict? table<string, any>
----@param opts? ClassOptions
+---@param dict?   table<string, any>
+---@param opts?   ClassOptions
 ---@return T
 function M.new_abstract(name, parent, dict, opts)
     local copied = options(parent, opts)
@@ -595,10 +550,10 @@ function M.new_abstract(name, parent, dict, opts)
 end
 
 ---@generic T
----@param name `T`
+---@param name    `T`
 ---@param parent? class
----@param dict? table<string, any>
----@param opts? ClassOptions
+---@param dict?   table<string, any>
+---@param opts?   ClassOptions
 ---@return T
 function M.new_final(name, parent, dict, opts)
     local copied = options(parent, opts)
@@ -606,7 +561,7 @@ function M.new_final(name, parent, dict, opts)
     return new_class(name, parent, dict, copied)
 end
 
----@generic T:class
+---@generic T: class
 ---@param cls T
 ---@return T
 function M.finish(cls)
@@ -614,10 +569,10 @@ function M.finish(cls)
     return cls
 end
 
----@param obj any
----@param kind 'object'|'class'?
----@overload fun(obj:any):'object'|'class'?
----@overload fun(obj:any, kind:'object'|'class'):boolean?
+---@param obj  any
+---@param kind ('object' | 'class')?
+---@overload fun(obj: any): 'object' | 'class' | nil
+---@overload fun(obj: any, kind: 'object' | 'class'): boolean
 function M.kindof(obj, kind)
     local found
 
@@ -625,9 +580,11 @@ function M.kindof(obj, kind)
         found = 'class'
     elseif class_of(obj) then
         found = 'object'
+    elseif kind then
+        return false
     end
 
-    if kind and found then
+    if kind then
         return found == kind
     end
 
@@ -646,8 +603,8 @@ function M.isfinal(cls)
     return check_class(cls).opts.final
 end
 
----@generic T:class
----@param cls T
+---@generic T: class
+---@param cls     T
 ---@param clsinfo T
 ---@return boolean
 function M.issubclass(cls, clsinfo)
@@ -665,12 +622,12 @@ function M.issubclass(cls, clsinfo)
     return false
 end
 
----@generic T:class
+---@generic T: class
 ---@param obj any
----@param cls T|[T...]
+---@param cls T | [T...]
 ---@return TypeGuard<T>
----@overload fun(obj:any, cls:T):TypeGuard<T>
----@overload fun(obj:any, cls:[T...]):TypeGuard<T...>
+---@overload fun(obj: any, cls: T): TypeGuard<T>
+---@overload fun(obj: any, cls:[T...]): TypeGuard<T...>
 function M.isinstance(obj, cls)
     local obj_cls = class_of(obj)
 
@@ -679,7 +636,10 @@ function M.isinstance(obj, cls)
     end
 
     if state_of(cls) then
-        return M.issubclass(obj_cls, cls --[[@as class]])
+        return M.issubclass(
+            obj_cls,
+            cls --[[@as class]]
+        )
     end
 
     if type(cls) ~= 'table' then
@@ -702,7 +662,7 @@ local function super_proxy(parent, obj)
     local cache = {}
 
     local mt = {
-        __index = function(_, key)
+        __index = function (_, key)
             local descriptor = state.descriptors and state.descriptors[key]
             local value
 
@@ -720,22 +680,22 @@ local function super_proxy(parent, obj)
             if not entry or entry.value ~= value then
                 entry = {
                     value = value,
-                    bound = function(arg1, ...)
+                    bound = function (arg1, ...)
                         if arg1 == proxy then
                             return value(obj, ...)
                         end
 
                         return value(arg1, ...)
-                    end,
+                    end
                 }
                 cache[key] = entry
             end
 
             return entry.bound
         end,
-        __newindex = function()
+        __newindex = function ()
             fail('cannot modify super class')
-        end,
+        end
     }
 
     if protected then
@@ -750,9 +710,9 @@ end
 --- With a receiver, preserve bound and explicit-self calls through a readonly proxy.
 ---@generic R extends class
 ---@generic T extends R
----@param cls T
----@param obj_or_cls? object|class
----@param _target_type? R Only for type inference.
+---@param cls           T
+---@param obj_or_cls?   object | class
+---@param _target_type? R              Only for type inference.
 ---@return R
 function M.super(cls, obj_or_cls, _target_type)
     check_class(cls)
@@ -784,13 +744,13 @@ inspect.__install('std.class', {
     state_of = state_of,
     finish = finish,
     getmetatable = actual_metatable,
-    fail = fail,
+    fail = fail
 })
 
 local module_mt = {
-    __call = function(_, ...)
+    __call = function (_, ...)
         return M.new(...)
-    end,
+    end
 }
 
 if protected then
