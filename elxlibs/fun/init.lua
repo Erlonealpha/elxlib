@@ -334,6 +334,7 @@ local nth = function(n, gen_x, param_x, state_x)
         return param_x[state_x + n]
     elseif gen_x == string_gen then
         if state_x + n <= #param_x then
+            ---@diagnostic disable-next-line: param-type-mismatch
             return string.sub(param_x, state_x + n, state_x + n)
         else
             return nil
@@ -565,6 +566,7 @@ local filter1_gen = function(fun, gen_x, param_x, state_x, a)
 end
 
 -- call each other
+---@[lsp_optimization('delayed_definition')]
 local filterm_gen
 local filterm_gen_shrink = function(fun, gen_x, param_x, state_x)
     return filterm_gen(fun, gen_x, param_x, gen_x(param_x, state_x))
@@ -822,7 +824,7 @@ methods.maximum_by = methods.max_by
 exports.maximum_by = exports.max_by
 
 local totable = function(gen_x, param_x, state_x)
-    local tab, key, val = {}
+    local tab, val = {}, nil
     while true do
         state_x, val = gen_x(param_x, state_x)
         if state_x == nil then
@@ -836,7 +838,7 @@ methods.totable = method0(totable)
 exports.totable = export0(totable)
 
 local tomap = function(gen_x, param_x, state_x)
-    local tab, key, val = {}
+    local tab, key, val = {}, nil, nil
     while true do
         state_x, key, val = gen_x(param_x, state_x)
         if state_x == nil then
@@ -987,6 +989,7 @@ methods.cycle = method0(cycle)
 exports.cycle = export0(cycle)
 
 -- call each other
+---@[lsp_optimization('delayed_definition')]
 local chain_gen_r1
 local chain_gen_r2 = function(param, state, state_x, ...)
     if state_x == nil then
@@ -995,8 +998,8 @@ local chain_gen_r2 = function(param, state, state_x, ...)
         if param[3 * i - 2] == nil then
             return nil
         end
-        local state_x = param[3 * i]
-        return chain_gen_r1(param, {i, state_x})
+        local _state_x = param[3 * i]
+        return chain_gen_r1(param, {i, _state_x})
     end
     return {state[1], state_x}, ...
 end
