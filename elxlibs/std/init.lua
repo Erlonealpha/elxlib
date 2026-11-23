@@ -12,6 +12,7 @@ _G._STD_CLASS_DEBUG = false
 
 local exception = require "elxlibs.std.exception"
 local class = require "elxlibs.std.class"
+local inspect = require 'elxlibs.std.inspect'
 
 -- lazy initialization of modules
 require "elxlibs.std.exception_init"
@@ -71,6 +72,7 @@ function M.trim(str)
 end
 
 M.class = class
+M.inspect = inspect
 M.super = class.super
 M.kindof = class.kindof
 M.issubclass = class.issubclass

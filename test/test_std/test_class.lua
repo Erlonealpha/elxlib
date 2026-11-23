@@ -15,8 +15,8 @@ F.test('direct inheritance initializes instances and resolves overridden members
     ---@class _std_test.Child : _std_test.Base
     ---@overload fun(value:integer):self
     local Child = class.new('_std_test.Child', Base)
-    function Child:__init(value) std.super(Child, self):__init(value + 1) end
-    function Child:get() return math.floor(std.super(Child, self):get() * 2) end
+    function Child:__init(value) std.super(Child, self, Base):__init(value + 1) end
+    function Child:get() return math.floor(std.super(Child, self, Base):get() * 2) end
     local first, second = Child(3), Child(7)
     F.eq(first:get(), 8, 'override uses parent method')
     F.eq(second:get(), 16, 'independent instance state')
@@ -70,8 +70,8 @@ F.test('final/abstract classes enforce construction and inheritance boundaries',
     F.eq(class.isabstract(Concrete), false, 'derived concrete class')
     F.eq(std.isinstance(Concrete(), Abstract), true, 'concrete inherits abstract')
     F.eq(std.isinstance(Final(), Final), true, 'final can instantiate')
-    F.raises(function() class.isabstract({}) end, 'TypeError', 'abstract guard rejects plain table')
-    F.raises(function() class.isfinal({}) end, 'TypeError', 'final guard rejects plain table')
+    F.raises(function() class.isabstract(S.runtime({})) end, 'TypeError', 'abstract guard rejects plain table')
+    F.raises(function() class.isfinal(S.runtime({})) end, 'TypeError', 'final guard rejects plain table')
 end)
 
 F.test('super supports bound and explicit-self calls and rejects invalid hierarchies', function()
@@ -85,11 +85,11 @@ F.test('super supports bound and explicit-self calls and rejects invalid hierarc
     local Derived = class.new('_std_test.Derived', Parent)
     local obj = Derived()
     obj.value = 9
-    local proxy = std.super(Derived, obj)
+    local proxy = std.super(Derived, obj, Parent)
     F.eq(proxy:read(), 9, 'bound call')
     F.eq(proxy.read(obj), 9, 'explicit self call')
-    F.eq(std.super(Derived, Derived).read(obj), 9, 'class hierarchy proxy')
-    F.raises(function() proxy.value = 1 end, 'TypeError', 'super proxy immutable')
+    F.eq(std.super(Derived, Derived, Parent).read(obj), 9, 'class hierarchy proxy')
+    F.raises(function() S.runtime(proxy).value = 1 end, 'TypeError', 'super proxy immutable')
     F.raises(function() std.super(class.object) end, 'TypeError', 'root has no parent')
     F.raises(function() std.super(S.runtime({}), obj) end, 'TypeError', 'invalid class rejected')
     F.raises(function() std.super(Derived, S.runtime({})) end, 'TypeError', 'invalid target rejected')

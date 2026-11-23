@@ -32,6 +32,8 @@ local function amp_subprocess(args, get_result)
             end
             local ok, value = pcall(get_result, result)
             if ok then
+                -- EmmyLua cannot correlate pcall's successful generic result with Future<T>.
+                ---@diagnostic disable-next-line: param-type-mismatch
                 fut:set_result(value)
             else
                 fut:set_result({ok = false, error = tostring(value)})

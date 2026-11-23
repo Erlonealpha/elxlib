@@ -197,6 +197,8 @@ end)
 end
 
 ---@class _WithMixin : _LoopMixin
+---@field acquire fun(self:self):Coroutine<boolean>
+---@field release fun(self:self)
 local _WithMixin = std.class.new('_WithMixin', _LoopMixin)
 
 ---@param func_or_awaitable thread | function | Future<any> | Coroutine<any>
@@ -214,7 +216,7 @@ end
 
 ---@class Semaphore : _WithMixin
 ---@field _value int
----@field _waiters (Future<nil>[])?
+---@field _waiters (Future<boolean>[])?
 ---@overload fun(value:int?):self
 local Semaphore = std.class.new('Semaphore', _WithMixin)
 function Semaphore:__init(value)

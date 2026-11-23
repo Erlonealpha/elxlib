@@ -102,8 +102,8 @@ F.test('Coroutine nesting preserves returns and rejects invalid yields', functio
     F.eq(pcall(function() coroutines.Coroutine(S.invalid(3)) end), false,
         'invalid coroutine constructor')
     local coro = asyncio.async(function() end)
-    F.eq(pcall(coro.__await, coro), false, 'direct coroutine await rejected')
-    F.eq(pcall(coro.__try_await, coro), false, 'direct coroutine try_await rejected')
+    F.eq(pcall(function() coro:__await() end), false, 'direct coroutine await rejected')
+    F.eq(pcall(function() coro:__try_await() end), false, 'direct coroutine try_await rejected')
 end)
 
 F.test('Task supports functions, threads, Coroutine and names', function()

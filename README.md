@@ -70,7 +70,8 @@ end
 
 | Module | Description |
 | --- | --- |
-| `std` | String utilities, class helpers, and exception helpers. Includes `split`, `trim`, `class`, `raise`/`traceback`/`xpcall`, `try/catch/finally`, and exception chaining via `__cause`. |
+| `std` | String utilities, shared-method classes, and exception helpers. Classes default to direct storage, with optional dict storage, attribute hooks, descriptors and parent access; see [class API](elxlibs/std/README.md). Includes `split`, `trim`, `raise`/`traceback`/`xpcall`, `try/catch/finally`, and exception chaining via `__cause`. |
+| `std.inspect` | Pure class identity/information and ordinary/default/raw attribute tools. Class installs private primitives; inspect builds the tools. Import through `std.inspect` or `elxlibs.std.inspect`; see [inspect API](elxlibs/std/inspect.md). |
 | `dataclass` | Independent shared-method data classes with field declarations, construction, equality/order, shallow freeze, replace and export. Works without `std.class` or mpv; see [API and storage rules](elxlibs/dataclass/README.md). |
 | `json` | JSON encode/decode helpers: `dumps`, `loads`, and `json.null`. `dumps` accepts a custom encoder (see `json.IEncoder` / `json.IDecoder`) and a `fallback` for unsupported values. |
 | `hashlib` | Pure Lua hashing helpers (including chunked/partial hashing via `hashlib.partial`) plus `base64_encode` / `base64_decode`. |
@@ -150,7 +151,7 @@ end))
 
 ## Tests
 
-`test/run.lua` uses the [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) submodule to discover `test/test_<group>/test_*.lua`. Groups cover dataclass, std, json, hashlib, fs, aiofs and asyncio, including cancellation/lifecycle regressions and host adapters. The default suite runs on bare LuaJIT with isolated stubbed host APIs:
+`test/run.lua` uses the [mpv-luatest](https://github.com/Erlonealpha/mpv-luatest) submodule to discover `test/test_<group>/test_*.lua`. Groups cover dataclass, std, inspect, json, hashlib, fs, aiofs and asyncio, including cancellation/lifecycle regressions and host adapters. The default suite runs on bare LuaJIT with isolated stubbed host APIs:
 
 ```sh
 git submodule update --init --recursive

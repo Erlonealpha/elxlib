@@ -55,9 +55,13 @@ shared framework back into this repository or modify the submodule implicitly.
 - Target LuaJIT's Lua 5.1 syntax. Do not use compound assignments, Lua 5.3
   operators or table finalizers without runtime support. Offline bootstrap
   supplies `table.pack` and `table.unpack` when the interpreter omits them.
-- `std.class.new(name, parent, dict)` accepts a direct single parent. Define
-  class metamethods before the first instance; the instance metatable is then
-  cached. Preserve final/abstract checks, reflection and protected metatables.
+- `std.class.new(name, parent, members, options)` accepts a direct single parent.
+  Instances default to direct storage; full attribute hooks and data descriptors
+  select dict storage without changing caller options. Define special behavior
+  before `class.finish` or the first instance; policies are cached. Preserve
+  final/abstract checks, reflection and protected metatables; see `elxlibs/std/README.md`.
+- Reflection tools belong to `std.inspect`. Class explicitly installs private
+  primitives; inspect must not require class or receive prepared public tools.
 - Preserve all values, including trailing nils, through coroutine/task wrappers.
   `try_await` reports success and returned values, or failure and the error.
 - Keep exception identity, default messages, `__cause` and traceback locations

@@ -60,7 +60,8 @@ Current groups:
 
 | Group | Coverage | Assertions |
 | --- | --- | --- |
-| [std](test_std/README.md) | Utilities, classes, reflection and exceptions | 115 |
+| [std](test_std/README.md) | Utilities, layered storage/hooks/descriptors, reflection, parent access and exceptions | 256 |
+| [inspect](test_inspect/README.md) | std.inspect primitive installation, identity, private snapshots and attribute tools | 40 |
 | [dataclass](test_dataclass/README.md) | Independent definitions, initialization, direct/dict storage, freeze, comparison and data operations | 316 |
 | [json](test_json/README.md) | Codec round trips, null placeholders and malformed input | 64 |
 | [hashlib](test_hashlib/README.md) | Digest vectors, streaming, HMAC, BLAKE and Base64 | 145 |

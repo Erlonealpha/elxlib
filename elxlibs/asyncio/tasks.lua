@@ -265,7 +265,7 @@ function Task:__step(exc)
 
         if coroutine_status(self._thr) == 'dead' then
             -- debug_msg(self._name, 'dead')
-            std.super(Task, self):set_result(unpack(res, 2, res.n))
+            std.super(Task, self, futures.Future):set_result(unpack(res, 2, res.n))
             _unregister_task(self)
             return
         end
