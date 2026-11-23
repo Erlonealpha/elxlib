@@ -71,7 +71,7 @@ end
 | 模块          | 说明 |
 | ---           | --- |
 | `std`         | 字符串工具、共享方法类系统和异常封装。类默认直存，按需启用 dict、属性 hook、描述符和父层访问；见 [class API](elxlibs/std/README.md)。包含 `split`、`trim`、`raise`/`traceback`/`xpcall`、`try/catch/finally` 和 `__cause` 异常链。 |
-| `std.inspect` | 纯 Lua 的类身份、私有信息快照，以及普通/默认/原始属性工具。class 仅安装底层能力，由 inspect 实现工具。通过 `std.inspect` 或 `elxlibs.std.inspect` 导入；见 [inspect API](elxlibs/std/inspect.md)。 |
+| `std.inspect` | 纯 Lua 的私有信息快照，以及普通/默认/原始属性工具。身份查询使用 `std.class.kindof` / `classof` 或 std 聚合入口。class 仅安装底层能力，由 inspect 实现工具。通过 `std.inspect` 或 `elxlibs.std.inspect` 导入；见 [inspect API](elxlibs/std/inspect.md)。 |
 | `dataclass`   | 独立的共享方法数据类：字段声明、构造、相等/排序、浅冻结、replace 和导出。不依赖 `std.class` 或 mpv；详见 [API 与存储规则](elxlibs/dataclass/README.md)。 |
 | `json`        | JSON 编码/解码，提供 `dumps`、`loads` 和 `json.null`。`dumps` 支持自定义编码器（`json.IEncoder` / `json.IDecoder`）以及 `fallback` 兜底函数。 |
 | `hashlib`     | 纯 Lua 哈希函数集合（支持 `hashlib.partial` 分块哈希），并导出 `base64_encode` / `base64_decode`。 |

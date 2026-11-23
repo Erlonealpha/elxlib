@@ -3,12 +3,12 @@
 Import with `require 'elxlibs.std.inspect'`. This pure module does not load class or
 mpv. `require('elxlibs.std').inspect` references the same module. `std.class`
 explicitly calls `inspect.__install('std.class', capabilities)` after initializing
-its core. Both import orders share the same inspect module. A
-repeated installation of the same capabilities is idempotent; conflicting installations
-raise an error, and incomplete installation can be retried. Hot reload is not
+its core. Both import orders share the same inspect module. A successful
+installation is accepted once; all repeated installations raise an error,
+and incomplete installation can be retried. Hot reload is not
 supported.
 
-Before installation, `kindof`/`classof` return nil. Class-specific tools report
+Before installation, class-specific tools report
 `std.class capabilities unavailable`; they never implicitly require the class module.
 The independent dataclass does not participate in this installation.
 
@@ -18,11 +18,11 @@ and `fail` raises a class error. It does not install prepared public tools.
 Inspect builds identity checks, parameter validation, information snapshots and
 attribute tools from those primitives and State's cached data/read/write policies.
 State stays owned by the class; the installation retains no per-class references.
+Identity queries belong to `class.kindof` / `class.classof` and their std aliases.
+Inspect exports information and attribute tools.
 
 | Function | Behavior |
 | --- | --- |
-| `kindof(obj, kind?)` | Class/instance identity query, matching `std.class.kindof` |
-| `classof(obj)` | Instance's class, or nil |
 | `classinfo(cls)` | Shallow snapshot: name, parent, mro, options, finished, effective storage |
 | `getmembers(cls, inherited?)` | Copy of raw shared members; nearest definition wins; own-only by default |
 | `getmetatable(cls_or_obj)` | Actual metatable snapshot with private State omitted |

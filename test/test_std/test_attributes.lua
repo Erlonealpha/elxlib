@@ -26,7 +26,7 @@ F.test('invalid hooks reject completion and data identity queries do not call ho
     count = 0
     F.eq(class.kindof(obj), 'object', 'kind reflects raw identity')
     F.eq(class.isinstance(obj, Identity), true, 'instance reflects raw identity')
-    F.eq(inspect.classof(obj), Identity, 'inspect reflects raw identity')
+    F.eq(class.classof(obj), Identity, 'class reflects raw identity')
     F.eq(count, 0, 'identity query avoids custom hooks')
 end)
 

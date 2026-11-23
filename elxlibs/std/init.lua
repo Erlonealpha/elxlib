@@ -75,6 +75,7 @@ M.class = class
 M.inspect = inspect
 M.super = class.super
 M.kindof = class.kindof
+M.classof = class.classof
 M.issubclass = class.issubclass
 M.isinstance = class.isinstance
 

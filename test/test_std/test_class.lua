@@ -5,6 +5,26 @@ local S = require 'test_std.support'
 
 F.section('std class and reflection')
 
+F.test('classof belongs to class and kind guards return false for unknown identities', function()
+    ---@class _std_test.Identity : std.object
+    ---@overload fun(): self
+    local Type = class.new('_std_test.Identity')
+    local obj = Type()
+
+    F.eq(std.classof, class.classof, 'aggregate shares classof')
+    F.eq(class.classof(obj), Type, 'instance class identity')
+    F.eq(class.classof(Type), nil, 'class is not an instance')
+    F.eq(class.classof({}), nil, 'plain table has no class')
+    F.eq(class.classof(S.runtime({__class = {}})), nil, 'malformed marker rejected')
+    F.eq(class.classof(S.runtime({__class = Type})), Type, 'valid marker follows trust convention')
+    F.eq(class.classof(false), nil, 'non-table input has no class')
+    F.eq(class.kindof({}, 'object'), false, 'plain table object guard is boolean')
+    F.eq(class.kindof(nil, 'class'), false, 'nil class guard is boolean')
+    F.eq(class.kindof(false, 'object'), false, 'false object guard is boolean')
+    F.eq(class.kindof(S.runtime({__class = {}}), 'object'), false, 'malformed identity guard is false')
+    F.eq(class.kindof({}), nil, 'unfiltered unknown identity remains nil')
+end)
+
 F.test('direct inheritance initializes instances and resolves overridden members', function()
     ---@class _std_test.Base : std.object
     ---@field value integer

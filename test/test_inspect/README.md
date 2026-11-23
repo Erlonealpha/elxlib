@@ -1,11 +1,11 @@
 # inspect tests
 
 Run `luajit test/run.lua inspect` from the project root. Coverage includes
-primitive installation/retry/conflict, std aggregate identity, identity queries, shallow
+one-time primitive installation/retry/conflict, std aggregate identity, shallow
 private-information views, default/raw/ordinary attribute access and invalid
 class/instance boundaries. Tests build tools from a primitive-only fixture and
 verify that State and metatable views do not expose mutable configuration.
-Validation: **40 assertions passed**.
+Validation: **35 assertions passed**.
 
 Fresh-process import checks run separately:
 

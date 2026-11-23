@@ -173,7 +173,7 @@ F.test('class/state/meta closure cycles collect and live instances retain class'
     weak[3] = Type
     Type = nil
     collectgarbage('collect')
-    F.eq(inspect.classof(live), weak[3], 'live instance retains class')
+    F.eq(class.classof(live), weak[3], 'live instance retains class')
     F.eq(class.kindof(S.runtime({__class = {}})), nil, 'malformed identity rejected')
     F.eq(class.kindof(S.runtime({__class = weak[3]})), 'object', 'identity follows trusted convention')
 end)

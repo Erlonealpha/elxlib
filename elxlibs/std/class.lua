@@ -107,6 +107,8 @@ local function check_class(cls)
     return state
 end
 
+---@param obj any
+---@return class?
 local function class_of(obj)
     if type(obj) ~= 'table' or state_of(obj) then
         return nil
@@ -569,6 +571,9 @@ function M.finish(cls)
     return cls
 end
 
+--- Return the class identified by an instance's raw __class, or nil.
+M.classof = class_of
+
 ---@param obj  any
 ---@param kind ('object' | 'class')?
 ---@overload fun(obj: any): 'object' | 'class' | nil
@@ -731,6 +736,7 @@ function M.super(cls, obj_or_cls, _target_type)
     if not target then
         fail('obj_or_cls must be an object or class')
     end
+    ---@cast target class
 
     if not M.issubclass(target, cls) then
         fail('class is not in target hierarchy')

@@ -6,7 +6,6 @@ local rawget = rawget
 local rawset = rawset
 local pairs = pairs
 local ipairs = ipairs
-local rawequal = rawequal
 local error = error
 
 ---@class InspectClassInfo
@@ -36,7 +35,7 @@ local required_capabilities = {
     'fail',
 }
 
---- Internal installation bridge. Reinstalling the same capabilities is idempotent.
+--- Internal installation bridge. A successful installation is accepted once.
 ---@param name 'std.class'
 ---@param installed InspectCapabilities
 function M.__install(name, installed)
@@ -45,10 +44,6 @@ function M.__install(name, installed)
     end
 
     if capabilities then
-        if rawequal(capabilities, installed) then
-            return
-        end
-
         error('inspect: class capabilities already installed', 2)
     end
 
@@ -113,50 +108,6 @@ local function object_state(obj)
     return access.finish(state.cls)
 end
 
----@param obj any
----@param kind 'object'|'class'?
----@overload fun(obj:any):('object'|'class')?
----@overload fun(obj:any, kind:'object'|'class'):boolean?
-function M.kindof(obj, kind)
-    if not capabilities then
-        return nil
-    end
-
-    local found
-
-    if capabilities.state_of(obj) then
-        found = 'class'
-    elseif M.classof(obj) then
-        found = 'object'
-    end
-
-    if kind and found then
-        return found == kind
-    end
-
-    return found
-end
-
----@param obj any
----@return class?
-function M.classof(obj)
-    if not capabilities or type(obj) ~= 'table' then
-        return nil
-    end
-
-    if capabilities.state_of(obj) then
-        return nil
-    end
-
-    local cls = rawget(obj, '__class')
-
-    if capabilities.state_of(cls) then
-        return cls
-    end
-
-    return nil
-end
-
 --- A shallow snapshot; nested member values remain shared.
 ---@param cls class
 ---@return InspectClassInfo
@@ -205,7 +156,12 @@ end
 function M.getmetatable(obj)
     local access = installed()
 
-    if not access.state_of(obj) and not M.classof(obj) then
+    local state = access.state_of(obj)
+    if not state and type(obj) == 'table' then
+        state = access.state_of(rawget(obj, '__class'))
+    end
+
+    if not state then
         access.fail('expected a class or instance')
         error('inspect: class error handler returned', 2)
     end

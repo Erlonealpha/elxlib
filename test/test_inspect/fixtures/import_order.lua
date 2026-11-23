@@ -8,7 +8,8 @@ if mode == 'inspect' then
     assert(package.loaded['elxlibs.std.class'] == nil)
     assert(package.loaded['elxlibs.std.exception'] == nil)
     assert(package.loaded.mp == nil)
-    assert(inspect.classof({}) == nil)
+    assert(rawget(inspect, 'kindof') == nil)
+    assert(rawget(inspect, 'classof') == nil)
     ---@return any
     local function invalid_value()
         return {}
@@ -70,7 +71,8 @@ end
 local inspect = require 'elxlibs.std.inspect'
 local std = require 'elxlibs.std'
 assert(std.inspect == inspect)
-assert(inspect.classof(std.TypeError('test')) == std.TypeError)
+assert(std.classof(std.TypeError('test')) == std.TypeError)
+assert(std.classof == std.class.classof)
 assert(std.isinstance(std.TypeError('test'), std.Exception))
 assert(std.class == require 'elxlibs.std.class')
 assert(package.loaded.mp == nil)

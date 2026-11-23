@@ -152,7 +152,10 @@ a proxy uses the requested parent as owner and the bound instance as receiver.
 Resolution starts at the declaration class's parent, preserving deep inheritance
 and all returned values. Root and unrelated-hierarchy requests raise TypeError.
 
-`kindof`, `isinstance`, `issubclass`, `isabstract`, and `isfinal` remain available
-through class; the first three also retain their `std` aliases. An instance's
+`kindof`, `classof`, `isinstance`, `issubclass`, `isabstract`, and `isfinal` are available
+through class; the first four also have `std` aliases. `classof(obj)` returns the
+instance's class, or nil for a class/plain value/malformed marker. `kindof(obj)`
+returns `'class'`, `'object'` or nil; supplying a kind returns a boolean, including
+false for an unknown identity. An instance's
 raw `__class` identifies its type. Valid convention-based identities may be
 forged; malformed markers are rejected by reflection queries.
